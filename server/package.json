@@ -2,20 +2,14 @@
   "name": "server",
   "version": "1.0.0",
   "type": "module",
-  "description": "",
-  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "cors": "^2.8.6",
-    "dotenv": "^18.0.5",
-    "express": "^5.2.1",
-    "groq-sdk": "^1.6.0",
-    "multer": "^2.4.0"
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "groq-sdk": "^0.3.3",
+    "multer": "^1.4.5-lts.1"
   }
 }
