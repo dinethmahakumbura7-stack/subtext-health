@@ -11,22 +11,50 @@ import {
   CheckCircle2, 
   AlertCircle, 
   DollarSign, 
-  CheckSquare 
+  CheckSquare,
+  Languages,
+  RotateCcw
 } from 'lucide-react';
 
-const SAMPLE_TEXT = `HOSPITAL SURGICAL CONSENT & FINANCIAL WAIVER:
+const CLINICAL_PRESETS = [
+  {
+    id: 'surgical',
+    title: 'Surgical Waiver',
+    text: `HOSPITAL SURGICAL CONSENT & FINANCIAL WAIVER:
 The patient agrees that Dr. Smith and Associates may perform elective laparoscopic surgery. 
 SECTION 4.2 - BINDING ARBITRATION: The signatory forfeits any right to trial by jury and submits all malpractice claims exclusively to private arbitration at the patient's shared expense.
-SECTION 8 - OUT-OF-NETWORK COVERAGE: Patient authorizes care by supplemental surgical assistants or on-call anesthesiologists, and acknowledges responsibility for all out-of-network balance billings not covered by primary insurance.
-DISCHARGE PRESCRIPTION:
-- Amoxicillin 500mg: 1 tablet every morning with breakfast.
-- Ibuprofen 600mg: Take 1 tablet afternoon as needed for pain.
-- Doxycycline 100mg: 1 tablet at night. WARNING: Do NOT consume with dairy products or milk.`;
+SECTION 8 - OUT-OF-NETWORK COVERAGE: Patient authorizes care by supplemental surgical assistants or on-call anesthesiologists, and acknowledges responsibility for all out-of-network balance billings not covered by primary insurance.`
+  },
+  {
+    id: 'pediatric',
+    title: 'Pediatric Antibiotic Rx',
+    text: `DISCHARGE PRESCRIPTION & PEDIATRIC INSTRUCTIONS:
+- Amoxicillin-Clavulanate (Augmentin) 400mg/5mL: Give 5 mL orally every 12 hours with food for 10 full days.
+- Ibuprofen Infant Drops 50mg/1.25mL: Give 1.25 mL every 6 to 8 hours as needed for high fever (>38.5°C). Never give on an empty stomach.
+- Warning: Stop immediately and go to ER if skin rash, wheezing, or facial swelling occurs.`
+  },
+  {
+    id: 'emergency',
+    title: 'ER Surprise Billing Notice',
+    text: `EMERGENCY ROOM DISCHARGE SUMMARY & FINANCIAL UNDERTAKING:
+Patient presented with acute non-cardiac chest tightness. EKG normal.
+OUT-OF-NETWORK NOTICE: Diagnostic scans and lab testing were processed by third-party offsite physicians who are out-of-network.
+The patient assumes full personal liability for all remaining balances, copays, and non-contracted facility fees exceeding primary insurance coverage.`
+  }
+];
+
+const LANGUAGES = [
+  { code: 'English', label: 'English' },
+  { code: 'Sinhala', label: 'සිංහල (Sinhala)' },
+  { code: 'Tamil', label: 'தமிழ் (Tamil)' },
+  { code: 'Spanish', label: 'Español' }
+];
 
 export default function App() {
-  const [inputText, setInputText] = useState(SAMPLE_TEXT);
+  const [inputText, setInputText] = useState(CLINICAL_PRESETS[0].text);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
+  const [targetLanguage, setTargetLanguage] = useState('English');
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -54,6 +82,7 @@ export default function App() {
       if (selectedFile) {
         const formData = new FormData();
         formData.append('file', selectedFile);
+        formData.append('language', targetLanguage);
         res = await fetch('http://localhost:5000/api/analyze-file', {
           method: 'POST',
           body: formData,
@@ -62,7 +91,10 @@ export default function App() {
         res = await fetch('http://localhost:5000/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ textContent: inputText }),
+          body: JSON.stringify({ 
+            textContent: inputText, 
+            language: targetLanguage 
+          }),
         });
       }
 
@@ -80,14 +112,15 @@ export default function App() {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const clearFile = () => {
     setSelectedFile(null);
     setFilePreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const applyPreset = (presetText) => {
+    clearFile();
+    setInputText(presetText);
   };
 
   return (
@@ -106,15 +139,33 @@ export default function App() {
           </div>
         </div>
 
-        {analysis && (
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl transition"
-          >
-            <Printer className="w-4 h-4 text-teal-400" />
-            Print Care Card
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Language Selector */}
+          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5">
+            <Languages className="w-3.5 h-3.5 text-teal-400" />
+            <select
+              value={targetLanguage}
+              onChange={(e) => setTargetLanguage(e.target.value)}
+              className="bg-transparent text-xs text-slate-200 outline-none cursor-pointer"
+            >
+              {LANGUAGES.map(lang => (
+                <option key={lang.code} value={lang.code} className="bg-slate-900 text-slate-200">
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {analysis && (
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl transition"
+            >
+              <Printer className="w-4 h-4 text-teal-400" />
+              Print Care Card
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Main Container */}
@@ -124,10 +175,28 @@ export default function App() {
         <section className="lg:col-span-5 flex flex-col gap-4 print:hidden">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col flex-1">
             
+            {/* Clinical Preset Quick Switcher */}
+            <div className="mb-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                Quick Demo Presets:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {CLINICAL_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    onClick={() => applyPreset(preset.text)}
+                    className="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-teal-950 hover:text-teal-300 border border-slate-700/60 hover:border-teal-700 transition"
+                  >
+                    {preset.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* File Drag-and-Drop Zone */}
             <div 
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-700 hover:border-teal-500 rounded-xl p-4 text-center cursor-pointer transition bg-slate-950/40 mb-4"
+              className="border-2 border-dashed border-slate-700 hover:border-teal-500 rounded-xl p-4 text-center cursor-pointer transition bg-slate-950/40 mb-3"
             >
               <input 
                 type="file" 
@@ -136,11 +205,11 @@ export default function App() {
                 accept="image/*,.pdf,.txt" 
                 className="hidden" 
               />
-              <UploadCloud className="w-8 h-8 text-teal-400 mx-auto mb-2" />
+              <UploadCloud className="w-7 h-7 text-teal-400 mx-auto mb-1.5" />
               <p className="text-xs font-semibold text-slate-300">
-                {selectedFile ? selectedFile.name : "Click to upload prescription photo or document scan"}
+                {selectedFile ? selectedFile.name : "Upload medical scan, photo, or PDF"}
               </p>
-              <p className="text-[10px] text-slate-500 mt-1">PNG, JPG, or PDF up to 10MB</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">PDF, PNG, or JPG up to 10MB</p>
             </div>
 
             {selectedFile && (
@@ -151,29 +220,29 @@ export default function App() {
             )}
 
             {filePreview && (
-              <div className="mb-4 rounded-xl overflow-hidden border border-slate-800 max-h-48 flex justify-center bg-black/40">
-                <img src={filePreview} alt="Scan preview" className="object-contain max-h-48" />
+              <div className="mb-3 rounded-xl overflow-hidden border border-slate-800 max-h-40 flex justify-center bg-black/40">
+                <img src={filePreview} alt="Scan preview" className="object-contain max-h-40" />
               </div>
             )}
 
             {/* Raw Text Fallback */}
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-teal-400" /> Or paste document text:
+                <FileText className="w-3.5 h-3.5 text-teal-400" /> Document Text:
               </label>
               <button 
-                onClick={() => { clearFile(); setInputText(SAMPLE_TEXT); }}
-                className="text-[11px] text-teal-400 hover:underline"
+                onClick={() => applyPreset(CLINICAL_PRESETS[0].text)}
+                className="text-[11px] text-teal-400 hover:underline flex items-center gap-1"
               >
-                Reset Sample
+                <RotateCcw className="w-3 h-3" /> Reset
               </button>
             </div>
             
             <textarea
               disabled={!!selectedFile}
-              className={`w-full flex-1 min-h-[220px] p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl text-xs font-mono resize-none focus:outline-none focus:border-teal-500 leading-relaxed ${selectedFile ? 'opacity-40 cursor-not-allowed text-slate-500' : 'text-slate-300'}`}
-              placeholder="Paste hospital consent copy, surgical agreement, or prescription notes here..."
-              value={selectedFile ? "[File uploaded — ready to scan]" : inputText}
+              className={`w-full flex-1 min-h-[200px] p-3 bg-slate-950/70 border border-slate-800 rounded-xl text-xs font-mono resize-none focus:outline-none focus:border-teal-500 leading-relaxed ${selectedFile ? 'opacity-40 cursor-not-allowed text-slate-500' : 'text-slate-300'}`}
+              placeholder="Paste hospital consent, surgery agreement, or prescription notes here..."
+              value={selectedFile ? "[File attached — click Audit Document to analyze]" : inputText}
               onChange={(e) => setInputText(e.target.value)}
             />
 
@@ -187,12 +256,12 @@ export default function App() {
             <button
               onClick={handleScan}
               disabled={loading}
-              className="mt-4 w-full py-3 bg-teal-600 hover:bg-teal-500 active:scale-[0.99] disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition"
+              className="mt-4 w-full py-3 bg-teal-600 hover:bg-teal-500 active:scale-[0.99] disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-teal-950"
             >
               {loading ? (
                 <>
                   <Sparkles className="w-4 h-4 animate-spin text-teal-200" />
-                  Auditing Clauses & Risks...
+                  Auditing Clauses & Translating to {targetLanguage}...
                 </>
               ) : (
                 <>
@@ -211,20 +280,20 @@ export default function App() {
             <div className="h-full border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center p-8 text-center text-slate-500 min-h-[400px]">
               <FileText className="w-12 h-12 text-slate-700 mb-3" />
               <p className="text-sm font-medium text-slate-400">No document scanned yet</p>
-              <p className="text-xs max-w-sm mt-1">Upload a prescription or consent document to generate a patient impact breakdown.</p>
+              <p className="text-xs max-w-sm mt-1">Select a quick preset or upload a medical document to generate your risk analysis.</p>
             </div>
           ) : (
             <>
               {/* Vulnerability Meter & Document Badge */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 print:grid-cols-3">
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between print:bg-white print:border-black">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 print:text-gray-700">Document Type</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 print:text-black">Document Type</span>
                   <span className="text-sm font-bold text-teal-300 mt-1 print:text-black">{analysis.documentType || 'Medical Record'}</span>
                 </div>
 
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between sm:col-span-2 print:bg-white print:border-black">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 print:text-gray-700">Patient Vulnerability Score</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 print:text-black">Patient Vulnerability Score</span>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${analysis.vulnerabilityScore > 70 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
                       {analysis.vulnerabilityScore || 0}/100 ({analysis.vulnerabilityLevel || 'Risk'})
                     </span>
@@ -244,7 +313,7 @@ export default function App() {
                   <DollarSign className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                   <div>
                     <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider print:text-black">Out-Of-Pocket Billing Alert</h4>
-                    <p className="text-xs text-slate-200 mt-1 print:text-gray-800">{analysis.financialLiabilityWarning}</p>
+                    <p className="text-xs text-slate-200 mt-1 print:text-black">{analysis.financialLiabilityWarning}</p>
                   </div>
                 </div>
               )}
@@ -252,7 +321,9 @@ export default function App() {
               {/* Summary Card */}
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm print:bg-white print:border-black">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3 print:border-black">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400 print:text-black">Document Summary</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400 print:text-black">
+                    Summary ({targetLanguage})
+                  </span>
                   <div className="bg-slate-950 p-0.5 rounded-lg border border-slate-800 flex print:hidden">
                     <button
                       onClick={() => setViewLevel('simplified')}
@@ -326,7 +397,7 @@ export default function App() {
                             {med.timeSlot}
                           </span>
                           <p className="text-xs font-bold text-white mt-2 print:text-black">{med.medicationName}</p>
-                          <p className="text-[11px] text-slate-400 mt-1 leading-snug print:text-gray-700">{med.instructions}</p>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-snug print:text-black">{med.instructions}</p>
                         </div>
                       </div>
                     ))}
