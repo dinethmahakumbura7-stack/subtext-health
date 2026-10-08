@@ -11,9 +11,9 @@ import {
   CheckCircle2, 
   AlertCircle, 
   DollarSign, 
-  CheckSquare,
-  Languages,
-  RotateCcw
+  CheckSquare, 
+  Languages, 
+  RotateCcw 
 } from 'lucide-react';
 
 const CLINICAL_PRESETS = [
@@ -73,7 +73,8 @@ export default function App() {
     }
   };
 
-  const handleScan = async () => {
+  // Reusable audit execution function accepting explicit language override
+  const executeAudit = async (langToUse = targetLanguage) => {
     setLoading(true);
     setErrorMessage(null);
 
@@ -82,7 +83,7 @@ export default function App() {
       if (selectedFile) {
         const formData = new FormData();
         formData.append('file', selectedFile);
-        formData.append('language', targetLanguage);
+        formData.append('language', langToUse);
         res = await fetch('http://localhost:5000/api/analyze-file', {
           method: 'POST',
           body: formData,
@@ -93,7 +94,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             textContent: inputText, 
-            language: targetLanguage 
+            language: langToUse 
           }),
         });
       }
@@ -104,11 +105,20 @@ export default function App() {
       }
 
       setAnalysis(data);
+      setViewLevel('simplified');
     } catch (err) {
       console.error(err);
       setErrorMessage(err.message || 'Make sure the backend server is running on port 5000!');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Triggers immediate real-time re-analysis when dropdown changes
+  const handleLanguageChange = (newLang) => {
+    setTargetLanguage(newLang);
+    if (analysis) {
+      executeAudit(newLang);
     }
   };
 
@@ -140,12 +150,12 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Language Selector */}
+          {/* Target Language Dropdown */}
           <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5">
             <Languages className="w-3.5 h-3.5 text-teal-400" />
             <select
               value={targetLanguage}
-              onChange={(e) => setTargetLanguage(e.target.value)}
+              onChange={(e) => handleLanguageChange(e.target.value)}
               className="bg-transparent text-xs text-slate-200 outline-none cursor-pointer"
             >
               {LANGUAGES.map(lang => (
@@ -168,14 +178,14 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Container */}
+      {/* Main Grid */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 print:p-0 print:block">
         
-        {/* Left Column: Upload & Text Ingestion */}
+        {/* Left Column: Input */}
         <section className="lg:col-span-5 flex flex-col gap-4 print:hidden">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col flex-1">
             
-            {/* Clinical Preset Quick Switcher */}
+            {/* Quick Presets */}
             <div className="mb-4">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
                 Quick Demo Presets:
@@ -193,7 +203,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* File Drag-and-Drop Zone */}
+            {/* File Drag-and-Drop */}
             <div 
               onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-slate-700 hover:border-teal-500 rounded-xl p-4 text-center cursor-pointer transition bg-slate-950/40 mb-3"
@@ -225,7 +235,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Raw Text Fallback */}
+            {/* Document Raw Text */}
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5 text-teal-400" /> Document Text:
@@ -254,7 +264,7 @@ export default function App() {
             )}
 
             <button
-              onClick={handleScan}
+              onClick={() => executeAudit(targetLanguage)}
               disabled={loading}
               className="mt-4 w-full py-3 bg-teal-600 hover:bg-teal-500 active:scale-[0.99] disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-teal-950"
             >
@@ -274,7 +284,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Right Column: Results & Care Card */}
+        {/* Right Column: Dashboard */}
         <section className="lg:col-span-7 flex flex-col gap-5 print:w-full">
           {!analysis ? (
             <div className="h-full border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center p-8 text-center text-slate-500 min-h-[400px]">
@@ -284,7 +294,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              {/* Vulnerability Meter & Document Badge */}
+              {/* Document Type & Vulnerability Meter */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 print:grid-cols-3">
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between print:bg-white print:border-black">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 print:text-black">Document Type</span>
@@ -329,13 +339,13 @@ export default function App() {
                       onClick={() => setViewLevel('simplified')}
                       className={`text-xs px-2.5 py-1 rounded-md font-medium transition ${viewLevel === 'simplified' ? 'bg-teal-600 text-white' : 'text-slate-400'}`}
                     >
-                      Plain English
+                      {targetLanguage === 'English' ? 'Plain English' : targetLanguage}
                     </button>
                     <button
                       onClick={() => setViewLevel('standard')}
                       className={`text-xs px-2.5 py-1 rounded-md font-medium transition ${viewLevel === 'standard' ? 'bg-teal-600 text-white' : 'text-slate-400'}`}
                     >
-                      Original Tone
+                      Original Medical Tone
                     </button>
                   </div>
                 </div>
@@ -346,7 +356,7 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Flagged Traps */}
+              {/* Flagged Legal Traps */}
               {Array.isArray(analysis.flaggedClauses) && analysis.flaggedClauses.length > 0 && (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 print:bg-white print:border-black">
                   <div className="flex items-center gap-2 mb-3">
@@ -379,7 +389,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Medication Schedule Timeline */}
+              {/* Medication Schedule */}
               {Array.isArray(analysis.medicationTimeline) && analysis.medicationTimeline.length > 0 && (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 print:bg-white print:border-black">
                   <div className="flex items-center gap-2 mb-3">

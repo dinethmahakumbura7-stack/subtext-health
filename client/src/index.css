@@ -7,12 +7,7 @@
     background-color: #ffffff !important;
     color: #111827 !important;
   }
-  header, button, input, textarea, .print\\:hidden {
+  header, button, input, textarea, select {
     display: none !important;
-  }
-  .print-page {
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
   }
 }
