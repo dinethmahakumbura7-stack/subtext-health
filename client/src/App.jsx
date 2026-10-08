@@ -8,6 +8,7 @@ import {
   ArrowRight, 
   UploadCloud, 
   Printer, 
+  Download,
   CheckCircle2, 
   Circle,
   AlertCircle, 
@@ -63,6 +64,7 @@ export default function App() {
   const [inputText, setInputText] = useState(CLINICAL_PRESETS[0].text);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState('English');
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState(null);
@@ -130,8 +132,7 @@ export default function App() {
     setCompletedTasks({});
   };
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
+  const handleFile = (file) => {
     if (file) {
       setSelectedFile(file);
       if (file.type.startsWith('image/')) {
@@ -139,6 +140,27 @@ export default function App() {
       } else {
         setFilePreview(null);
       }
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    handleFile(e.target.files[0]);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -225,6 +247,59 @@ export default function App() {
     setTimeout(() => setCopiedScript(false), 2000);
   };
 
+  // Export readable summary text file
+  const handleExportText = () => {
+    if (!analysis) return;
+    
+    let content = `=======================================================\n`;
+    content += `SUBTEXT HEALTH AI - PATIENT ADVOCACY & DISCHARGE REPORT\n`;
+    content += `=======================================================\n\n`;
+    content += `Document Type: ${analysis.documentType || 'Medical Record'}\n`;
+    content += `Vulnerability Risk Score: ${analysis.vulnerabilityScore}/100 (${analysis.vulnerabilityLevel})\n`;
+    content += `Language: ${targetLanguage}\n`;
+    content += `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n\n`;
+
+    if (analysis.financialLiabilityWarning) {
+      content += `[OUT-OF-POCKET BILLING ALERT]\n${analysis.financialLiabilityWarning}\n\n`;
+    }
+
+    content += `[PATIENT SUMMARY]\n`;
+    content += `${analysis.summary?.simplified || analysis.summary?.standard || 'N/A'}\n\n`;
+
+    if (analysis.flaggedClauses?.length) {
+      content += `[IDENTIFIED LEGAL RISKS & HAZARDS]\n`;
+      analysis.flaggedClauses.forEach((c, i) => {
+        content += `${i + 1}. ${c.clauseTitle} (${c.severity} Risk)\n`;
+        if (c.originalQuote) content += `   Original: "${c.originalQuote}"\n`;
+        content += `   Patient Impact: ${c.plainExplanation}\n\n`;
+      });
+    }
+
+    if (analysis.medicationTimeline?.length) {
+      content += `[MEDICATION REGIMEN]\n`;
+      analysis.medicationTimeline.forEach((m) => {
+        content += `- [${m.timeSlot}] ${m.medicationName}: ${m.instructions}\n`;
+      });
+      content += `\n`;
+    }
+
+    if (analysis.caregiverChecklist?.length) {
+      content += `[DISCHARGE & CAREGIVER ACTION ITEMS]\n`;
+      analysis.caregiverChecklist.forEach((item, i) => {
+        const status = completedTasks[i] ? '[COMPLETED]' : '[PENDING]';
+        content += `- ${status} ${item}\n`;
+      });
+    }
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `SubText_Report_${analysis.documentType?.replace(/\s+/g, '_')}_${Date.now()}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const clearFile = () => {
     setSelectedFile(null);
     setFilePreview(null);
@@ -252,8 +327,8 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Target Language Dropdown */}
+        <div className="flex items-center gap-2.5">
+          {/* Language Selector */}
           <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5">
             <Languages className="w-3.5 h-3.5 text-teal-400"/>
             <select
@@ -270,13 +345,26 @@ export default function App() {
           </div>
 
           {analysis && (
-            <button
-              onClick={() => window.print()}
-              className="flex items-center gap-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl transition"
-            >
-              <Printer className="w-4 h-4 text-teal-400"/>
-              Print Care Card
-            </button>
+            <>
+              {/* Export Text File */}
+              <button
+                onClick={handleExportText}
+                className="flex items-center gap-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl transition"
+                title="Download text summary"
+              >
+                <Download className="w-3.5 h-3.5 text-teal-400"/>
+                Download
+              </button>
+
+              {/* Print View */}
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 text-xs font-semibold bg-teal-600 hover:bg-teal-500 text-white px-3.5 py-2 rounded-xl transition shadow-sm"
+              >
+                <Printer className="w-3.5 h-3.5 text-teal-100"/>
+                Print Care Card
+              </button>
+            </>
           )}
         </div>
       </header>
@@ -347,10 +435,13 @@ export default function App() {
               </div>
             )}
 
-            {/* File Drag-and-Drop */}
+            {/* File Drag-and-Drop with Drag Hover Effect */}
             <div 
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-700 hover:border-teal-500 rounded-xl p-4 text-center cursor-pointer transition bg-slate-950/40 mb-3"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition mb-3 ${isDragging ? 'border-teal-400 bg-teal-950/40 scale-[1.01]' : 'border-slate-700 hover:border-teal-500 bg-slate-950/40'}`}
             >
               <input 
                 type="file" 
@@ -359,11 +450,11 @@ export default function App() {
                 accept="image/*,.pdf,.txt" 
                 className="hidden" 
               />
-              <UploadCloud className="w-7 h-7 text-teal-400 mx-auto mb-1.5"/>
+              <UploadCloud className={`w-7 h-7 mx-auto mb-1.5 transition ${isDragging ? 'text-teal-300 animate-bounce' : 'text-teal-400'}`}/>
               <p className="text-xs font-semibold text-slate-300">
-                {selectedFile ? selectedFile.name : "Upload medical scan, photo, or PDF"}
+                {selectedFile ? selectedFile.name : (isDragging ? "Drop your file here now" : "Upload medical scan, photo, or PDF")}
               </p>
-              <p className="text-[10px] text-slate-500 mt-0.5">PDF, PNG, or JPG up to 10MB</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Drag & drop PDF, PNG, or JPG up to 10MB</p>
             </div>
 
             {selectedFile && (
@@ -428,11 +519,10 @@ export default function App() {
           </div>
         </section>
 
-        {/* Right Column: High-Contrast Skeleton Loader */}
+        {/* Right Column: Dashboard & Skeletons */}
         <section className="lg:col-span-7 flex flex-col gap-5 print:w-full">
           {loading ? (
             <div className="flex flex-col gap-4">
-              {/* Active Scan Status Banner */}
               <div className="bg-teal-950/40 border border-teal-500/40 rounded-2xl p-4 flex items-center justify-between animate-pulse">
                 <div className="flex items-center gap-2.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-ping"></div>
@@ -443,12 +533,10 @@ export default function App() {
                 <Sparkles className="w-4 h-4 text-teal-400 animate-spin" />
               </div>
 
-              {/* Skeleton Metrics Bar */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="h-20 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between overflow-hidden relative">
                   <div className="h-3 w-16 bg-slate-700/80 rounded animate-pulse"></div>
                   <div className="h-5 w-24 bg-teal-800/50 rounded animate-pulse"></div>
-                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
                 </div>
                 <div className="h-20 bg-slate-900 border border-slate-800 rounded-2xl p-4 col-span-2 flex flex-col justify-between overflow-hidden relative">
                   <div className="flex justify-between">
@@ -458,11 +546,9 @@ export default function App() {
                   <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-slate-700/70 w-3/4 rounded-full animate-pulse"></div>
                   </div>
-                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
                 </div>
               </div>
 
-              {/* Skeleton Summary */}
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 overflow-hidden relative">
                 <div className="flex justify-between items-center pb-3 border-b border-slate-800 mb-3">
                   <div className="h-3.5 w-32 bg-slate-700/80 rounded animate-pulse"></div>
@@ -473,24 +559,6 @@ export default function App() {
                   <div className="h-3.5 w-11/12 bg-slate-700/60 rounded animate-pulse"></div>
                   <div className="h-3.5 w-4/5 bg-slate-700/60 rounded animate-pulse"></div>
                 </div>
-                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-              </div>
-
-              {/* Skeleton Hazard Clause */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 overflow-hidden relative">
-                <div className="h-3.5 w-48 bg-slate-700/80 rounded mb-4 animate-pulse"></div>
-                <div className="space-y-3">
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 border-l-4 border-l-rose-500/60 space-y-2">
-                    <div className="h-3.5 w-32 bg-slate-700/80 rounded animate-pulse"></div>
-                    <div className="h-3 w-full bg-slate-800 rounded animate-pulse"></div>
-                    <div className="h-3 w-5/6 bg-slate-800 rounded animate-pulse"></div>
-                  </div>
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 border-l-4 border-l-amber-500/60 space-y-2">
-                    <div className="h-3.5 w-28 bg-slate-700/80 rounded animate-pulse"></div>
-                    <div className="h-3 w-4/5 bg-slate-800 rounded animate-pulse"></div>
-                  </div>
-                </div>
-                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
               </div>
             </div>
           ) : !analysis ? (
