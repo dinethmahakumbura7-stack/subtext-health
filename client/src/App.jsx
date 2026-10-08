@@ -9,6 +9,7 @@ import {
   UploadCloud, 
   Printer, 
   CheckCircle2, 
+  Circle,
   AlertCircle, 
   DollarSign, 
   CheckSquare, 
@@ -17,7 +18,9 @@ import {
   MessageSquare,
   X,
   History,
-  Trash2
+  Trash2,
+  Copy,
+  Check
 } from 'lucide-react';
 
 const CLINICAL_PRESETS = [
@@ -71,11 +74,12 @@ export default function App() {
   const [activeClauseAction, setActiveClauseAction] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionData, setActionData] = useState(null);
+  const [copiedScript, setCopiedScript] = useState(false);
 
-  // Day 4 Session History State
+  // Day 4 Checklist Toggles & History
+  const [completedTasks, setCompletedTasks] = useState({});
   const [auditHistory, setAuditHistory] = useState([]);
 
-  // Load audit history on initial component mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -86,6 +90,13 @@ export default function App() {
       console.error("Failed to load history from localStorage:", e);
     }
   }, []);
+
+  const toggleTask = (idx) => {
+    setCompletedTasks(prev => ({
+      ...prev,
+      [idx]: !prev[idx]
+    }));
+  };
 
   const saveToHistory = (newAnalysis, langUsed, docSnippet) => {
     try {
@@ -116,6 +127,7 @@ export default function App() {
     setAnalysis(record.data);
     setTargetLanguage(record.language || 'English');
     setViewLevel('simplified');
+    setCompletedTasks({});
   };
 
   const handleFileSelect = (e) => {
@@ -133,6 +145,7 @@ export default function App() {
   const executeAudit = async (langToUse = targetLanguage) => {
     setLoading(true);
     setErrorMessage(null);
+    setCompletedTasks({});
 
     try {
       let res;
@@ -178,11 +191,11 @@ export default function App() {
     }
   };
 
-  // Day 4 Action Script Generator
   const handleGetClauseAdvice = async (clause) => {
     setActiveClauseAction(clause);
     setActionLoading(true);
     setActionData(null);
+    setCopiedScript(false);
 
     try {
       const res = await fetch('http://localhost:5000/api/clause-action', {
@@ -204,6 +217,12 @@ export default function App() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleCopyScript = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopiedScript(true);
+    setTimeout(() => setCopiedScript(false), 2000);
   };
 
   const clearFile = () => {
@@ -262,10 +281,10 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Grid */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 print:p-0 print:block">
         
-        {/* Left Column: Inputs, Presets & History */}
+        {/* Left Column */}
         <section className="lg:col-span-5 flex flex-col gap-4 print:hidden">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col flex-1">
             
@@ -287,7 +306,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Day 4: Recent Audits History Tray */}
+            {/* Recent Audits History Tray */}
             {auditHistory.length > 0 && (
               <div className="mb-4 p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl">
                 <div className="flex items-center justify-between mb-2">
@@ -409,9 +428,72 @@ export default function App() {
           </div>
         </section>
 
-        {/* Right Column: Dashboard */}
+        {/* Right Column: High-Contrast Skeleton Loader */}
         <section className="lg:col-span-7 flex flex-col gap-5 print:w-full">
-          {!analysis ? (
+          {loading ? (
+            <div className="flex flex-col gap-4">
+              {/* Active Scan Status Banner */}
+              <div className="bg-teal-950/40 border border-teal-500/40 rounded-2xl p-4 flex items-center justify-between animate-pulse">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-ping"></div>
+                  <span className="text-xs font-semibold text-teal-300">
+                    SubText AI Engine is auditing clauses & compiling {targetLanguage} patient summary...
+                  </span>
+                </div>
+                <Sparkles className="w-4 h-4 text-teal-400 animate-spin" />
+              </div>
+
+              {/* Skeleton Metrics Bar */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="h-20 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between overflow-hidden relative">
+                  <div className="h-3 w-16 bg-slate-700/80 rounded animate-pulse"></div>
+                  <div className="h-5 w-24 bg-teal-800/50 rounded animate-pulse"></div>
+                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
+                </div>
+                <div className="h-20 bg-slate-900 border border-slate-800 rounded-2xl p-4 col-span-2 flex flex-col justify-between overflow-hidden relative">
+                  <div className="flex justify-between">
+                    <div className="h-3 w-36 bg-slate-700/80 rounded animate-pulse"></div>
+                    <div className="h-3 w-14 bg-rose-800/60 rounded animate-pulse"></div>
+                  </div>
+                  <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-slate-700/70 w-3/4 rounded-full animate-pulse"></div>
+                  </div>
+                  <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
+                </div>
+              </div>
+
+              {/* Skeleton Summary */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 overflow-hidden relative">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-800 mb-3">
+                  <div className="h-3.5 w-32 bg-slate-700/80 rounded animate-pulse"></div>
+                  <div className="h-5 w-24 bg-slate-800 rounded animate-pulse"></div>
+                </div>
+                <div className="space-y-2.5">
+                  <div className="h-3.5 w-full bg-slate-700/60 rounded animate-pulse"></div>
+                  <div className="h-3.5 w-11/12 bg-slate-700/60 rounded animate-pulse"></div>
+                  <div className="h-3.5 w-4/5 bg-slate-700/60 rounded animate-pulse"></div>
+                </div>
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
+              </div>
+
+              {/* Skeleton Hazard Clause */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 overflow-hidden relative">
+                <div className="h-3.5 w-48 bg-slate-700/80 rounded mb-4 animate-pulse"></div>
+                <div className="space-y-3">
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 border-l-4 border-l-rose-500/60 space-y-2">
+                    <div className="h-3.5 w-32 bg-slate-700/80 rounded animate-pulse"></div>
+                    <div className="h-3 w-full bg-slate-800 rounded animate-pulse"></div>
+                    <div className="h-3 w-5/6 bg-slate-800 rounded animate-pulse"></div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 border-l-4 border-l-amber-500/60 space-y-2">
+                    <div className="h-3.5 w-28 bg-slate-700/80 rounded animate-pulse"></div>
+                    <div className="h-3 w-4/5 bg-slate-800 rounded animate-pulse"></div>
+                  </div>
+                </div>
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
+              </div>
+            </div>
+          ) : !analysis ? (
             <div className="h-full border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center p-8 text-center text-slate-500 min-h-[400px]">
               <FileText className="w-12 h-12 text-slate-700 mb-3"/>
               <p className="text-sm font-medium text-slate-400">No document scanned yet</p>
@@ -481,7 +563,7 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Flagged Legal Traps with Day 4 Action Buttons */}
+              {/* Flagged Legal Traps */}
               {Array.isArray(analysis.flaggedClauses) && analysis.flaggedClauses.length > 0 && (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 print:bg-white print:border-black">
                   <div className="flex items-center gap-2 mb-3">
@@ -509,7 +591,6 @@ export default function App() {
                           💡 <span className="font-semibold text-teal-300 print:text-black">Patient Impact:</span> {clause.plainExplanation}
                         </p>
 
-                        {/* Day 4 Interactive Action Trigger */}
                         <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between print:hidden">
                           <button
                             onClick={() => handleGetClauseAdvice(clause)}
@@ -551,23 +632,43 @@ export default function App() {
                 </div>
               )}
 
-              {/* Caregiver Checklist */}
+              {/* Interactive Caregiver Checklist with Task Toggles */}
               {Array.isArray(analysis.caregiverChecklist) && analysis.caregiverChecklist.length > 0 && (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 print:bg-white print:border-black">
-                  <div className="flex items-center gap-2 mb-3">
-                    <CheckSquare className="w-5 h-5 text-teal-400"/>
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider print:text-black">
-                      Discharge & Caregiver Action Items
-                    </h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <CheckSquare className="w-5 h-5 text-teal-400"/>
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider print:text-black">
+                        Discharge & Caregiver Action Items
+                      </h3>
+                    </div>
+                    <span className="text-[11px] text-teal-400 font-semibold print:hidden">
+                      {Object.values(completedTasks).filter(Boolean).length} / {analysis.caregiverChecklist.length} Done
+                    </span>
                   </div>
 
                   <ul className="space-y-2">
-                    {analysis.caregiverChecklist.map((item, idx) => (
-                      <li key={idx} className="flex items-start gap-2 text-xs text-slate-300 print:text-black">
-                        <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0 mt-0.5 print:text-black"/>
-                        <span>{item}</span>
-                      </li>
-                    ))}
+                    {analysis.caregiverChecklist.map((item, idx) => {
+                      const isDone = !!completedTasks[idx];
+                      return (
+                        <li 
+                          key={idx} 
+                          onClick={() => toggleTask(idx)}
+                          className={`flex items-start gap-2.5 p-2 rounded-xl transition cursor-pointer select-none border ${isDone ? 'bg-teal-950/20 border-teal-800/40 text-slate-400' : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-200'} print:text-black print:border-none print:p-0`}
+                        >
+                          <button className="mt-0.5 shrink-0 print:hidden">
+                            {isDone ? (
+                              <CheckCircle2 className="w-4 h-4 text-teal-400" />
+                            ) : (
+                              <Circle className="w-4 h-4 text-slate-500 hover:text-slate-400" />
+                            )}
+                          </button>
+                          <span className={`text-xs leading-relaxed ${isDone ? 'line-through text-slate-400' : 'text-slate-200'} print:text-black print:no-underline`}>
+                            {item}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -576,7 +677,7 @@ export default function App() {
         </section>
       </main>
 
-      {/* Day 4 Modal: Interactive Patient Negotiation Script */}
+      {/* Action Script Modal */}
       {activeClauseAction && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
@@ -605,11 +706,29 @@ export default function App() {
               </div>
             ) : actionData ? (
               <div className="space-y-3.5">
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-                  <span className="text-[10px] uppercase font-bold text-teal-400 tracking-wider block mb-1">
-                    What You Can Say (Read to Staff):
-                  </span>
-                  <p className="text-xs text-slate-100 font-medium italic">
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 relative">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] uppercase font-bold text-teal-400 tracking-wider">
+                      What You Can Say (Read to Staff):
+                    </span>
+                    <button 
+                      onClick={() => handleCopyScript(actionData.talkingScript)}
+                      className="text-[11px] text-slate-400 hover:text-teal-300 flex items-center gap-1 transition"
+                    >
+                      {copiedScript ? (
+                        <>
+                          <Check className="w-3 h-3 text-teal-400" />
+                          <span className="text-teal-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-100 font-medium italic pr-6">
                     "{actionData.talkingScript}"
                   </p>
                 </div>
