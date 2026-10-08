@@ -56,7 +56,6 @@ async function getWorkingModel() {
     const modelsList = await groq.models.list();
     const allIds = modelsList.data.map(m => m.id);
 
-    // Prefer gpt-oss-120b, then any llama/qwen
     const preferred = allIds.filter(id => 
       !id.includes('whisper') &&
       !id.includes('embed') &&
@@ -74,7 +73,7 @@ async function getWorkingModel() {
     if (preferred.length > 0) return preferred[0];
     return allIds[0];
   } catch (err) {
-    console.warn("Could not query Groq models, fallback to gpt-oss-120b:", err.message);
+    console.warn("Could not query Groq models, fallback to openai/gpt-oss-120b:", err.message);
     return 'openai/gpt-oss-120b';
   }
 }
@@ -200,6 +199,58 @@ app.post('/api/analyze-file', upload.single('file'), async (req, res) => {
   } catch (error) {
     console.error("File analysis error:", error);
     return res.status(500).json({ error: error?.message || "Failed to process document." });
+  }
+});
+
+// 3. Clause Negotiation & Talking Points Endpoint (Day 4 Feature)
+app.post('/api/clause-action', async (req, res) => {
+  try {
+    const { clauseTitle, originalQuote, plainExplanation, language = 'English' } = req.body;
+    if (!clauseTitle) {
+      return res.status(400).json({ error: "Missing clause information." });
+    }
+
+    const model = await getWorkingModel();
+    console.log(`Generating action script for: "${clauseTitle}" in ${language}`);
+
+    const isSinhala = language.toLowerCase().includes('sinhala');
+    const isTamil = language.toLowerCase().includes('tamil');
+    const isSpanish = language.toLowerCase().includes('spanish');
+
+    let scriptLangDirective = `Output all response values in fluent ${language}.`;
+    if (isSinhala) scriptLangDirective = `All response values MUST be written entirely in native Sinhala script (සිංහල අකුරින් පමණි).`;
+    if (isTamil) scriptLangDirective = `All response values MUST be written entirely in native Tamil script (தமிழ் எழுத்துக்களில் மட்டுமே).`;
+    if (isSpanish) scriptLangDirective = `All response values MUST be written in Spanish.`;
+
+    const prompt = `
+You are a patient advocate attorney and healthcare billing expert.
+A patient encountered this hazard/clause in a hospital form or medical bill:
+Clause Title: ${clauseTitle}
+Quote: "${originalQuote || 'N/A'}"
+Identified Hazard: ${plainExplanation || 'N/A'}
+
+Provide actionable guidance. Return STRICT JSON with this schema:
+{
+  "talkingScript": "Exact, polite script the patient can say directly to hospital staff or clerk.",
+  "alternativeRequest": "Specific modification or alternative to ask for (e.g. strike out section, demand in-network guarantee).",
+  "patientRight": "A clear 1-2 sentence reminder of the patient's basic rights."
+}
+
+${scriptLangDirective}
+Return ONLY valid JSON. Keep schema keys in English.
+`;
+
+    const completion = await groq.chat.completions.create({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" }
+    });
+
+    const parsed = cleanJsonParse(completion.choices[0].message.content);
+    return res.json(parsed);
+  } catch (error) {
+    console.error("Clause action error:", error);
+    return res.status(500).json({ error: error?.message || "Failed to generate action advice." });
   }
 });
 
