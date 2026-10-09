@@ -39,6 +39,9 @@ import {
   PhoneCall
 } from 'lucide-react';
 
+// Live Render production backend URL
+const API_BASE_URL = 'https://subtext-health.onrender.com';
+
 const CLINICAL_PRESETS = [
   {
     id: 'surgical',
@@ -192,12 +195,12 @@ export default function App() {
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('language', langToUse);
-        res = await fetch('http://localhost:5000/api/analyze-file', {
+        res = await fetch(`${API_BASE_URL}/api/analyze-file`, {
           method: 'POST',
           body: formData,
         });
       } else {
-        res = await fetch('http://localhost:5000/api/analyze', {
+        res = await fetch(`${API_BASE_URL}/api/analyze`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -217,7 +220,7 @@ export default function App() {
       saveToHistory(data, langToUse, (selectedFile && activeTab === 'upload') ? selectedFile.name : inputText);
     } catch (err) {
       console.error(err);
-      setErrorMessage(err.message || 'Make sure the backend server is running on port 5000!');
+      setErrorMessage(err.message || 'Connecting to backend service...');
     } finally {
       setLoading(false);
     }
@@ -228,7 +231,6 @@ export default function App() {
     if (analysis) executeAudit(newLang);
   };
 
-  // Click clause to highlight & auto-scroll to original document reference box
   const handleSelectClause = (concern) => {
     const query = concern.sourceSection || concern.title;
     setHighlightedSection(query);
@@ -244,7 +246,7 @@ export default function App() {
     setCopiedScript(false);
 
     try {
-      const res = await fetch('http://localhost:5000/api/clause-action', {
+      const res = await fetch(`${API_BASE_URL}/api/clause-action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
