@@ -660,10 +660,10 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased selection:bg-teal-100 selection:text-teal-900 print:bg-white print:text-black">
       
       {/* Header */}
-      <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md px-6 py-3.5 sticky top-0 z-30 shadow-sm print:hidden">
+      <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md px-4 sm:px-6 py-3.5 sticky top-0 z-30 shadow-sm print:hidden">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-600 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-teal-500/20">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-600 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-teal-500/20 shrink-0">
               <HeartPulse className="w-5 h-5 stroke-[2.3]"/>
             </div>
             <div>
@@ -675,22 +675,22 @@ export default function App() {
                   Patient Companion
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium">{t.tagline}</p>
+              <p className="text-[11px] text-slate-500 font-medium hidden sm:block">{t.tagline}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setShowPrivacyModal(true)}
-              className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 transition"
+              className="hidden md:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 transition"
               title="Click to view privacy commitments"
             >
               <Lock className="w-3.5 h-3.5 text-teal-600"/>
               <span>{t.privateSession}</span>
             </button>
 
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-1.5 transition">
-              <Languages className="w-4 h-4 text-teal-600"/>
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-2 sm:px-3 py-1.5 transition">
+              <Languages className="w-4 h-4 text-teal-600 shrink-0"/>
               <select
                 value={targetLanguage}
                 onChange={(e) => handleLanguageChange(e.target.value)}
@@ -708,7 +708,7 @@ export default function App() {
               <>
                 <button
                   onClick={handleExportText}
-                  className="flex items-center gap-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-1.5 rounded-xl transition shadow-sm print:hidden"
+                  className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-1.5 rounded-xl transition shadow-sm print:hidden"
                 >
                   <Download className="w-3.5 h-3.5 text-slate-500"/>
                   {t.saveReport}
@@ -716,7 +716,7 @@ export default function App() {
 
                 <button
                   onClick={() => window.print()}
-                  className="flex items-center gap-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white px-4 py-1.5 rounded-xl transition shadow-md shadow-teal-600/20 print:hidden"
+                  className="hidden sm:flex items-center gap-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white px-4 py-1.5 rounded-xl transition shadow-md shadow-teal-600/20 print:hidden"
                 >
                   <Printer className="w-3.5 h-3.5"/>
                   {t.printCareCard}
@@ -728,7 +728,7 @@ export default function App() {
       </header>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-b from-white via-teal-50/20 to-slate-50 border-b border-slate-200 px-6 py-6 print:hidden">
+      <section className="bg-gradient-to-b from-white via-teal-50/20 to-slate-50 border-b border-slate-200 px-4 sm:px-6 py-6 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div className="space-y-1.5 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-[11px] font-semibold">
@@ -768,12 +768,12 @@ export default function App() {
         </div>
       </section>
 
-      {/* Main Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 print:p-0 print:block items-start">
+      {/* Main Workspace: Fixed relative layout on mobile, sticky only on desktop */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 print:p-0 print:block items-start">
         
-        {/* Left Column */}
-        <section className="lg:col-span-5 flex flex-col gap-4 print:hidden sticky top-20">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col">
+        {/* Left Column: relative on small screens, sticky on desktop */}
+        <section className="lg:col-span-5 flex flex-col gap-4 print:hidden relative lg:sticky lg:top-20 z-10">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
                 {t.analyzeHeader}
@@ -801,7 +801,7 @@ export default function App() {
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${activeTab === 'presets' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 <BookOpen className="w-3.5 h-3.5"/>
-                {t.tabPresets} ({CLINICAL_PRESETS.length})
+                {t.tabPresets}
               </button>
             </div>
 
@@ -832,7 +832,7 @@ export default function App() {
 
                 {selectedFile && (
                   <div className="flex items-center justify-between bg-teal-50 border border-teal-200 rounded-xl px-3 py-2 mb-2">
-                    <span className="text-xs font-semibold text-teal-900 truncate max-w-[240px]">{selectedFile.name}</span>
+                    <span className="text-xs font-semibold text-teal-900 truncate max-w-[200px] sm:max-w-[240px]">{selectedFile.name}</span>
                     <button onClick={clearFile} className="text-[11px] font-bold text-rose-600 hover:underline">{t.remove}</button>
                   </div>
                 )}
@@ -857,7 +857,7 @@ export default function App() {
                   </button>
                 </div>
                 <textarea
-                  className="w-full min-h-[150px] p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 leading-relaxed text-slate-700 transition mb-3"
+                  className="w-full min-h-[140px] p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 leading-relaxed text-slate-700 transition mb-3"
                   placeholder="Paste hospital consent, surgery agreement, or prescription notes here..."
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -976,8 +976,8 @@ export default function App() {
           )}
         </section>
 
-        {/* Right Column */}
-        <section className="lg:col-span-7 flex flex-col gap-5 print:w-full">
+        {/* Right Column: Normal relative flow, preventing overlaps */}
+        <section className="lg:col-span-7 flex flex-col gap-5 print:w-full relative z-0">
           {loading ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
               <div className="flex items-center gap-3">
@@ -1181,8 +1181,8 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* What Should I Say Card */}
-                  <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-teal-950 text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                  {/* What Should I Say Card: relative flow, z-index managed */}
+                  <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-teal-950 text-white rounded-3xl p-5 shadow-lg relative z-0">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-300 border border-teal-500/30 flex items-center justify-center">
@@ -1479,7 +1479,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-6 px-6 mt-8 print:hidden">
+      <footer className="border-t border-slate-200 bg-white py-6 px-4 sm:px-6 mt-8 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <Scale className="w-4 h-4 text-teal-600 shrink-0"/>
@@ -1495,7 +1495,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Score Modal */}
+      {/* Modals */}
       {showScoreInfoModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
@@ -1549,7 +1549,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Term Modal */}
       {activeTermModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
@@ -1589,7 +1588,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Negotiation Brief Modal */}
       {activeClauseAction && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative">
