@@ -28,10 +28,12 @@ import {
   AlertTriangle, 
   UserCheck, 
   Pill, 
-  X 
+  X,
+  ExternalLink
 } from 'lucide-react';
 
 const API_BASE_URL = 'https://subtext-health.onrender.com';
+const LEMON_SQUEEZY_CHECKOUT_URL = 'https://subtext-health.lemonsqueezy.com/checkout/buy/0fa9056a-d868-40dd-ac24-5e01a97abd45';
 
 const UI_STRINGS = {
   English: {
@@ -461,6 +463,14 @@ export default function App() {
       if (saved) setAuditHistory(JSON.parse(saved));
     } catch (e) {
       console.error("Failed to load history:", e);
+    }
+
+    // Check if customer just completed Lemon Squeezy checkout
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      setIsLetterUnlocked(true);
+      setShowDisputeModal(true);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
 
@@ -1284,7 +1294,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Formal Dispute Letter Generator Card */}
+                  {/* Formal Dispute Letter Generator Banner */}
                   <div className="bg-gradient-to-r from-teal-50 via-cyan-50 to-emerald-50 border border-teal-200 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
@@ -1788,12 +1798,15 @@ export default function App() {
                         </p>
                         
                         <div className="flex flex-col sm:flex-row items-center gap-2">
-                          <button
-                            onClick={() => setIsLetterUnlocked(true)}
-                            className="px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl font-bold text-xs transition shadow-md"
+                          <a
+                            href={LEMON_SQUEEZY_CHECKOUT_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl font-bold text-xs transition shadow-md inline-flex items-center gap-1.5 cursor-pointer"
                           >
-                            Unlock Now ($9.00) • Instant Download
-                          </button>
+                            <span>Unlock Now ($9.00) • Instant Download</span>
+                            <ExternalLink className="w-3.5 h-3.5"/>
+                          </a>
                         </div>
                       </div>
                     </div>
