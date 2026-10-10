@@ -443,6 +443,13 @@ export default function App() {
   const [showScoreInfoModal, setShowScoreInfoModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
+  // Dispute Letter States
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [isLetterUnlocked, setIsLetterUnlocked] = useState(false);
+  const [letterLoading, setLetterLoading] = useState(false);
+  const [disputeLetterData, setDisputeLetterData] = useState(null);
+  const [copiedLetter, setCopiedLetter] = useState(false);
+
   const [completedSignItems, setCompletedSignItems] = useState({});
   const [auditHistory, setAuditHistory] = useState([]);
 
@@ -598,6 +605,44 @@ export default function App() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleOpenDisputeModal = async () => {
+    setShowDisputeModal(true);
+    if (!disputeLetterData && analysis) {
+      setLetterLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/generate-dispute-letter`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            documentType: analysis.documentType,
+            concerns: analysis.topConcerns || [],
+            language: targetLanguage,
+            patientName: 'Signatory Patient'
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to generate dispute letter');
+        setDisputeLetterData(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLetterLoading(false);
+      }
+    }
+  };
+
+  const handleDownloadLetter = () => {
+    if (!disputeLetterData) return;
+    const content = `${disputeLetterData.letterSubject}\n\n${disputeLetterData.fullLetterBody}\n\nSTATUTORY PROTECTIONS CITED:\n${(disputeLetterData.statutoryCitations || []).join('\n')}`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Formal_Hospital_Dispute_Letter_${Date.now()}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleCopyScript = (text) => {
@@ -768,10 +813,10 @@ export default function App() {
         </div>
       </section>
 
-      {/* Main Workspace: Fixed relative layout on mobile, sticky only on desktop */}
+      {/* Main Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 print:p-0 print:block items-start">
         
-        {/* Left Column: relative on small screens, sticky on desktop */}
+        {/* Left Column */}
         <section className="lg:col-span-5 flex flex-col gap-4 print:hidden relative lg:sticky lg:top-20 z-10">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 flex flex-col">
             <div className="flex items-center justify-between mb-3">
@@ -976,7 +1021,7 @@ export default function App() {
           )}
         </section>
 
-        {/* Right Column: Normal relative flow, preventing overlaps */}
+        {/* Right Column */}
         <section className="lg:col-span-7 flex flex-col gap-5 print:w-full relative z-0">
           {loading ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
@@ -1181,7 +1226,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* What Should I Say Card: relative flow, z-index managed */}
+                  {/* What Should I Say Card */}
                   <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-teal-950 text-white rounded-3xl p-5 shadow-lg relative z-0">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -1221,6 +1266,28 @@ export default function App() {
                         ))}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Formal Dispute Letter Generator Card */}
+                  <div className="bg-gradient-to-r from-teal-50 via-cyan-50 to-emerald-50 border border-teal-200 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-600 text-white">
+                          Legal Advocacy Pack
+                        </span>
+                        <span className="text-xs font-bold text-slate-800">Hospital-Ready Formal Dispute Letter</span>
+                      </div>
+                      <p className="text-xs text-slate-600 max-w-lg leading-relaxed">
+                        Need to formally contest out-of-network balance charges or strike arbitration waivers? Generate an official, legally cited dispute letter ready for certified mail.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleOpenDisputeModal}
+                      className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shrink-0 shadow-sm"
+                    >
+                      <FileText className="w-4 h-4 text-teal-400"/>
+                      Generate Dispute Letter
+                    </button>
                   </div>
 
                   {/* 30-Second Snapshot */}
@@ -1270,7 +1337,7 @@ export default function App() {
                           >
                             <div className="flex items-center justify-between mb-1.5">
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-black text-slate-900 group-hover:text-teal-900">
+                                <span className="text-xs font-black text-slate-900 group-hover:text-teal-950">
                                   0{idx + 1} — {concern.title}
                                 </span>
                                 {concern.sourceSection && (
@@ -1495,7 +1562,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Modals */}
+      {/* Score Modal */}
       {showScoreInfoModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
@@ -1525,6 +1592,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Privacy Modal */}
       {showPrivacyModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
@@ -1549,6 +1617,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Term Modal */}
       {activeTermModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
@@ -1588,6 +1657,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Negotiation Brief Modal */}
       {activeClauseAction && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 print:hidden">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative">
@@ -1647,6 +1717,133 @@ export default function App() {
               <button onClick={() => setActiveClauseAction(null)} className="px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl">
                 {t.close}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Formal Dispute & Checkout Modal */}
+      {showDisputeModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 print:hidden">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <button 
+              onClick={() => setShowDisputeModal(false)} 
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700"
+            >
+              <X className="w-5 h-5"/>
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-9 h-9 rounded-2xl bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center">
+                <Scale className="w-5 h-5"/>
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                  Formal Hospital Dispute & Modification Packet
+                </h3>
+                <p className="text-[11px] text-slate-500">Certified consumer advocacy letter cited under statutory protections</p>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 my-3 space-y-3 text-xs">
+              {letterLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-teal-600 gap-2">
+                  <Sparkles className="w-6 h-6 animate-spin"/>
+                  <span className="text-xs text-slate-500">Drafting formal legal dispute letter in {targetLanguage}...</span>
+                </div>
+              ) : disputeLetterData ? (
+                <>
+                  {!isLetterUnlocked ? (
+                    <div className="relative rounded-2xl border border-slate-200 p-4 bg-slate-50 overflow-hidden">
+                      <div className="filter blur-[3px] select-none text-slate-400 font-mono text-[11px] space-y-2 leading-relaxed">
+                        <p>RE: FORMAL DISPUTE OF UNBUNDLED AND OUT-OF-NETWORK CHARGES</p>
+                        <p>Dear Billing Administrator and Patient Relations Department,</p>
+                        <p>I am writing to formally dispute the balance billing and mandatory private arbitration provisions outlined in agreement dated October 2026. Pursuant to the No Surprises Act (42 U.S.C. § 300gg-111)...</p>
+                        <p>Furthermore, I demand an itemized statement detailing all CPT and HCPCS codes before any balance is recognized...</p>
+                      </div>
+
+                      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center text-white">
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center mb-2">
+                          <Lock className="w-6 h-6 text-teal-300"/>
+                        </div>
+                        <h4 className="text-sm font-bold">Unlock Full Hospital Dispute Packet</h4>
+                        <p className="text-xs text-slate-200 max-w-sm mt-1 mb-4 leading-relaxed">
+                          Get the customized, formal letter with legal citations, an itemized demand checklist, and certified mail delivery instructions.
+                        </p>
+                        
+                        <div className="flex flex-col sm:flex-row items-center gap-2">
+                          <button
+                            onClick={() => setIsLetterUnlocked(true)}
+                            className="px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl font-bold text-xs transition shadow-md"
+                          >
+                            Unlock Now ($9.00) • Instant Download
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600"/>
+                        Letter Unlocked! Ready to download or copy.
+                      </div>
+
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 font-mono text-xs text-slate-800 whitespace-pre-line leading-relaxed max-h-60 overflow-y-auto">
+                        <strong>{disputeLetterData.letterSubject}</strong>
+                        {'\n\n'}
+                        {disputeLetterData.fullLetterBody}
+                      </div>
+
+                      {disputeLetterData.statutoryCitations?.length > 0 && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 block mb-1">
+                            Statutory Laws Cited:
+                          </span>
+                          <ul className="list-disc list-inside text-[11px] text-slate-700 space-y-0.5">
+                            {disputeLetterData.statutoryCitations.map((cite, i) => (
+                              <li key={i}>{cite}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-rose-600">Failed to load letter.</p>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+              <button 
+                onClick={() => setShowDisputeModal(false)} 
+                className="px-3.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 font-semibold"
+              >
+                Close
+              </button>
+
+              {isLetterUnlocked && disputeLetterData && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${disputeLetterData.letterSubject}\n\n${disputeLetterData.fullLetterBody}`);
+                      setCopiedLetter(true);
+                      setTimeout(() => setCopiedLetter(false), 2000);
+                    }}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    {copiedLetter ? <Check className="w-3.5 h-3.5 text-teal-600"/> : <Copy className="w-3.5 h-3.5"/>}
+                    <span>{copiedLetter ? 'Copied' : 'Copy Text'}</span>
+                  </button>
+                  <button
+                    onClick={handleDownloadLetter}
+                    className="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5"/>
+                    Download Letter (.txt)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

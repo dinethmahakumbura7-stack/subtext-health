@@ -220,6 +220,65 @@ Return ONLY a valid JSON object:
   }
 });
 
+app.post('/api/generate-dispute-letter', async (req, res) => {
+  try {
+    const { documentType, concerns = [], language = 'English', patientName = 'Patient' } = req.body;
+
+    const concernsText = concerns.map((c, i) => 
+      `${i + 1}. ${c.title || c.clauseTitle}: "${c.originalQuote || ''}" - ${c.plainExplanation || ''}`
+    ).join('\n');
+
+    const prompt = `
+You are a licensed healthcare patient advocate and consumer rights legal specialist.
+Draft a formal, assertive, and professional Hospital Billing Dispute & Waiver Amendment Letter in "${language}".
+
+Context:
+- Document Type: ${documentType || 'Medical Agreement / Bill'}
+- Identified Hazards & Issues:
+${concernsText}
+- Patient Signatory: ${patientName}
+
+The letter must contain:
+1. Formal header (Date, [Hospital / Billing Department Name], [Address], Notice of Dispute).
+2. Reference to patient consumer protections (such as the No Surprises Act, right to itemized CPT billing, and objection to unilateral private arbitration waivers).
+3. Specific contested line items or clauses identified above.
+4. Formal demands:
+   - Request for complete itemized billing with corresponding CPT/HCPCS codes.
+   - Formal reservation of rights under statutory consumer protection laws.
+   - Written request to strike or modify binding arbitration forfeitures.
+5. Polite, firm closing with a 30-day response deadline.
+
+Return ONLY a valid JSON object matching this schema:
+{
+  "letterSubject": "string",
+  "fullLetterBody": "full multi-paragraph letter string in ${language} formatted with clean line breaks (\\n\\n)",
+  "statutoryCitations": ["string (e.g. No Surprises Act 42 U.S.C. § 300gg-111)", "string"],
+  "recommendedActionChecklist": [
+    "Send via Certified Mail with Return Receipt Requested",
+    "Keep a copy with timestamped proof of delivery",
+    "Request written confirmation before making any payment"
+  ]
+}
+`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: 'You draft official, legally sound patient advocacy and medical dispute letters. Output valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+      model: 'llama-3.3-70b-versatile',
+      response_format: { type: 'json_object' },
+      temperature: 0.2
+    });
+
+    const parsed = JSON.parse(completion.choices[0].message.content);
+    res.json(parsed);
+  } catch (error) {
+    console.error('Dispute Letter Generation Error:', error);
+    res.status(500).json({ error: error.message || 'Error generating formal dispute letter' });
+  }
+});
+
 app.listen(port, () => {
   console.log(`SubText Health Server running on port ${port}`);
 });
