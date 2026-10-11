@@ -465,7 +465,7 @@ export default function App() {
       console.error("Failed to load history:", e);
     }
 
-    // Check if customer just completed Lemon Squeezy checkout
+    // Check if customer just returned from Lemon Squeezy checkout
     const params = new URLSearchParams(window.location.search);
     if (params.get('payment') === 'success') {
       setIsLetterUnlocked(true);
@@ -1295,24 +1295,24 @@ export default function App() {
                   </div>
 
                   {/* Formal Dispute Letter Generator Banner */}
-                  <div className="bg-gradient-to-r from-teal-50 via-cyan-50 to-emerald-50 border border-teal-200 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                  <div className="bg-gradient-to-r from-teal-50 via-cyan-50 to-emerald-50 border-2 border-teal-400/80 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:border-teal-500 transition">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-600 text-white">
-                          Legal Advocacy Pack
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-600 text-white shadow-xs">
+                          Legal Defense Pack
                         </span>
-                        <span className="text-xs font-bold text-slate-800">Hospital-Ready Formal Dispute Letter</span>
+                        <span className="text-xs font-bold text-slate-900">Hospital-Ready Formal Dispute Letter</span>
                       </div>
                       <p className="text-xs text-slate-600 max-w-lg leading-relaxed">
-                        Need to formally contest out-of-network balance charges or strike arbitration waivers? Generate an official, legally cited dispute letter ready for certified mail.
+                        Need to contest surprise balance billing or strike arbitration clauses? Generate an official, legally cited dispute letter ready for certified mail.
                       </p>
                     </div>
                     <button
                       onClick={handleOpenDisputeModal}
-                      className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shrink-0 shadow-sm"
+                      className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shrink-0 shadow-md hover:scale-[1.02] active:scale-[0.98]"
                     >
                       <FileText className="w-4 h-4 text-teal-400"/>
-                      Generate Dispute Letter
+                      Generate Dispute Letter ($9)
                     </button>
                   </div>
 
@@ -1780,33 +1780,51 @@ export default function App() {
               ) : disputeLetterData ? (
                 <>
                   {!isLetterUnlocked ? (
-                    <div className="relative rounded-2xl border border-slate-200 p-4 bg-slate-50 overflow-hidden">
-                      <div className="filter blur-[3px] select-none text-slate-400 font-mono text-[11px] space-y-2 leading-relaxed">
-                        <p>RE: FORMAL DISPUTE OF UNBUNDLED AND OUT-OF-NETWORK CHARGES</p>
-                        <p>Dear Billing Administrator and Patient Relations Department,</p>
-                        <p>I am writing to formally dispute the balance billing and mandatory private arbitration provisions outlined in agreement dated October 2026. Pursuant to the No Surprises Act (42 U.S.C. § 300gg-111)...</p>
-                        <p>Furthermore, I demand an itemized statement detailing all CPT and HCPCS codes before any balance is recognized...</p>
+                    <div className="space-y-3">
+                      {/* Proof of Customization Badges */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="font-semibold text-slate-500">Document Grounding:</span>
+                        <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md font-bold text-slate-800">
+                          {analysis.documentType || 'Surgical Agreement'}
+                        </span>
+                        <span className="bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md font-bold text-teal-800">
+                          ✓ No Surprises Act Cited
+                        </span>
+                        <span className="bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md font-bold text-rose-800">
+                          ✓ {analysis.topConcerns?.length || 2} Clauses Contested
+                        </span>
                       </div>
 
-                      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center text-white">
-                        <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center mb-2">
-                          <Lock className="w-6 h-6 text-teal-300"/>
+                      {/* Blurred Teaser with Lock */}
+                      <div className="relative rounded-2xl border border-slate-200 p-4 bg-slate-50 overflow-hidden">
+                        <div className="filter blur-[3.5px] select-none text-slate-400 font-mono text-[11px] space-y-2 leading-relaxed">
+                          <p>RE: FORMAL DISPUTE OF UNBUNDLED SURGICAL CHARGES AND SECTION 4.2 ARBITRATION COVENANTS</p>
+                          <p>Dear Billing Administrator and Patient Relations Department,</p>
+                          <p>I am writing to formally dispute the financial liabilities outlined in the agreement dated October 2026. Pursuant to the No Surprises Act (42 U.S.C. § 300gg-111), balance billing for non-contracted ancillary providers without informed statutory consent is unlawful...</p>
+                          <p>Furthermore, I demand an itemized statement detailing all CPT and HCPCS codes before any balance is recognized...</p>
                         </div>
-                        <h4 className="text-sm font-bold">Unlock Full Hospital Dispute Packet</h4>
-                        <p className="text-xs text-slate-200 max-w-sm mt-1 mb-4 leading-relaxed">
-                          Get the customized, formal letter with legal citations, an itemized demand checklist, and certified mail delivery instructions.
-                        </p>
-                        
-                        <div className="flex flex-col sm:flex-row items-center gap-2">
+
+                        <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center text-white">
+                          <div className="w-11 h-11 rounded-2xl bg-white/20 text-white flex items-center justify-center mb-2">
+                            <Lock className="w-5 h-5 text-teal-300"/>
+                          </div>
+                          <h4 className="text-sm font-bold">Unlock Full Hospital Dispute Packet</h4>
+                          <p className="text-xs text-slate-200 max-w-sm mt-1 mb-3 leading-relaxed">
+                            Customized legal letter citing federal billing protections, demand ledger checklist, and certified mail delivery instructions.
+                          </p>
+                          
                           <a
                             href={LEMON_SQUEEZY_CHECKOUT_URL}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl font-bold text-xs transition shadow-md inline-flex items-center gap-1.5 cursor-pointer"
+                            className="px-6 py-2.5 bg-teal-400 hover:bg-teal-300 text-slate-950 rounded-xl font-black text-xs transition shadow-lg inline-flex items-center gap-1.5"
                           >
                             <span>Unlock Now ($9.00) • Instant Download</span>
                             <ExternalLink className="w-3.5 h-3.5"/>
                           </a>
+                          <span className="text-[10px] text-slate-300 mt-2 font-medium">
+                            🔒 One-time payment • No subscription • Instant download
+                          </span>
                         </div>
                       </div>
                     </div>
