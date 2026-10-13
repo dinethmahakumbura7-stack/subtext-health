@@ -29,7 +29,8 @@ import {
   UserCheck, 
   Pill, 
   X,
-  ExternalLink
+  ExternalLink,
+  Edit3
 } from 'lucide-react';
 
 const API_BASE_URL = 'https://subtext-health.onrender.com';
@@ -108,7 +109,7 @@ const UI_STRINGS = {
     dailyMeds: 'Daily Medication Schedule',
     urgentCareTitle: 'When to Seek Urgent Emergency Care',
     erNote: "Always follow the treating clinician's direct emergency discharge instructions.",
-    footerNotice: 'SubText provides educational information and document analysis. It does not replace advice from a qualified healthcare professional, attorney, pharmacist, or insurer.',
+    footerNotice: 'SubText provides educational document analysis. It does not replace advice from a qualified healthcare professional, attorney, pharmacist, or insurer.',
     footerPrivate: 'Private In-Session Storage',
     footerMulti: 'Multi-Language Verification',
     negotiationBrief: 'Patient Negotiation Brief',
@@ -450,6 +451,7 @@ export default function App() {
   const [isLetterUnlocked, setIsLetterUnlocked] = useState(false);
   const [letterLoading, setLetterLoading] = useState(false);
   const [disputeLetterData, setDisputeLetterData] = useState(null);
+  const [editableLetterText, setEditableLetterText] = useState('');
   const [copiedLetter, setCopiedLetter] = useState(false);
 
   const [completedSignItems, setCompletedSignItems] = useState({});
@@ -465,9 +467,9 @@ export default function App() {
       console.error("Failed to load history:", e);
     }
 
-    // Check if customer just returned from Lemon Squeezy checkout
+    // Payment return check: handles order_id parameter or payment success
     const params = new URLSearchParams(window.location.search);
-    if (params.get('payment') === 'success') {
+    if (params.get('payment') === 'success' || params.get('order_id')) {
       setIsLetterUnlocked(true);
       setShowDisputeModal(true);
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -538,6 +540,7 @@ export default function App() {
     setErrorMessage(null);
     setCompletedSignItems({});
     setHighlightedSection(null);
+    setDisputeLetterData(null);
 
     try {
       let res;
@@ -617,10 +620,38 @@ export default function App() {
     }
   };
 
+  // Determine dynamic dispute eligibility and specific legal citations
+  const hasDisputeElements = analysis?.topConcerns?.some(c => {
+    const text = ((c.title || '') + ' ' + (c.plainExplanation || '') + ' ' + (c.originalQuote || '')).toLowerCase();
+    return text.includes('arbitration') || text.includes('balance') || text.includes('network') || text.includes('out-of-network') || text.includes('liability');
+  });
+
+  const hasOutofNetwork = analysis?.topConcerns?.some(c => {
+    const text = ((c.title || '') + ' ' + (c.plainExplanation || '') + ' ' + (c.originalQuote || '')).toLowerCase();
+    return text.includes('balance') || text.includes('network') || text.includes('out-of-network');
+  });
+
+  const hasArbitration = analysis?.topConcerns?.some(c => {
+    const text = ((c.title || '') + ' ' + (c.plainExplanation || '') + ' ' + (c.originalQuote || '')).toLowerCase();
+    return text.includes('arbitration') || text.includes('jury') || text.includes('waive');
+  });
+
   const handleOpenDisputeModal = async () => {
     setShowDisputeModal(true);
     if (!disputeLetterData && analysis) {
       setLetterLoading(true);
+
+      const dynamicCitations = [];
+      if (hasOutofNetwork) {
+        dynamicCitations.push('No Surprises Act (42 U.S.C. § 300gg-111) - Out-of-network balance billing restrictions');
+      }
+      if (hasArbitration) {
+        dynamicCitations.push('Formal Reservation of Rights & Objection to Mandatory Binding Arbitration');
+      }
+      if (dynamicCitations.length === 0) {
+        dynamicCitations.push('Consumer Health Transparency and Itemized Statement Demand (CPT/HCPCS)');
+      }
+
       try {
         const res = await fetch(`${API_BASE_URL}/api/generate-dispute-letter`, {
           method: 'POST',
@@ -633,26 +664,23 @@ export default function App() {
           })
         });
 
-        if (!res.ok) {
-          throw new Error(`Server returned ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Server returned ${res.status}`);
 
         const data = await res.json();
-        setDisputeLetterData(data);
-      } catch (err) {
-        console.warn('API error, applying client fallback letter:', err);
         setDisputeLetterData({
-          letterSubject: 'FORMAL NOTICE OF BILLING DISPUTE & WAIVER MODIFICATION',
-          fullLetterBody: `DATE: ${new Date().toLocaleDateString()}\n\nTO: Hospital Billing Administration & Patient Financial Services\n\nRE: Dispute of Out-of-Network Balance Billing & Arbitration Clauses\n\nDear Billing Director,\n\nI am submitting this formal written notice to dispute all supplemental out-of-network provider balance fees and private arbitration covenants associated with the provided documentation.\n\nUnder federal consumer protection standards established by the No Surprises Act (42 U.S.C. § 300gg-111), balance billing for emergency or supplemental anesthesiology/assistant services without prior statutory disclosure is contested.\n\nI formally request an itemized billing ledger with corresponding CPT codes and request written confirmation that collection actions are held pending review.\n\nSincerely,\n\nPatient Signatory`,
-          statutoryCitations: [
-            'No Surprises Act (42 U.S.C. § 300gg-111)',
-            'Fair Debt Collection Practices Act (FDCPA § 809)'
-          ],
-          recommendedActionChecklist: [
-            'Send via Certified Mail with Return Receipt Requested',
-            'Request written verification before remitting payment'
-          ]
+          ...data,
+          statutoryCitations: dynamicCitations
         });
+        setEditableLetterText(`${data.letterSubject}\n\n${data.fullLetterBody}\n\nSUPPORTING STATUTORY CITATIONS:\n${dynamicCitations.map(c => `• ${c}`).join('\n')}`);
+      } catch (err) {
+        console.warn('Using client-grounded structured fallback:', err);
+        const fallbackData = {
+          letterSubject: `RE: Formal Request for Terms Review & Clarification — ${analysis.documentType || 'Clinical Agreement'}`,
+          fullLetterBody: `DATE: ${new Date().toLocaleDateString()}\n\nTO: Hospital Administration & Patient Relations Department\n\nRE: Formal Dispute & Terms Modification Request\n\nDear Patient Relations & Billing Administration,\n\nI am writing to formally request clarification and amendment regarding specific provisions in the ${analysis.documentType || 'provided medical documentation'} before any binding commitment or final payment settlement is recognized.\n\nSpecifically, the following clauses present significant consumer and procedural concerns:\n${(analysis.topConcerns || []).map((c, i) => `\n${i + 1}. [Section: ${c.sourceSection || 'General'}] "${c.originalQuote || c.title}"\n   Concern: ${c.plainExplanation}\n   Formal Request: I request that this term be clarified in writing or struck from this agreement prior to treatment/settlement.`).join('\n')}\n\nFurthermore, pursuant to applicable consumer billing protections, I formally request a comprehensive itemized ledger with all corresponding CPT and HCPCS codes before any balance billing is enforced.\n\nPlease provide written confirmation of this request within thirty (30) business days.\n\nSincerely,\n\n[Patient / Signatory Name]\n[Contact Information]`,
+          statutoryCitations: dynamicCitations
+        };
+        setDisputeLetterData(fallbackData);
+        setEditableLetterText(`${fallbackData.letterSubject}\n\n${fallbackData.fullLetterBody}\n\nSUPPORTING STATUTORY CITATIONS:\n${dynamicCitations.map(c => `• ${c}`).join('\n')}`);
       } finally {
         setLetterLoading(false);
       }
@@ -660,13 +688,12 @@ export default function App() {
   };
 
   const handleDownloadLetter = () => {
-    if (!disputeLetterData) return;
-    const content = `${disputeLetterData.letterSubject}\n\n${disputeLetterData.fullLetterBody}\n\nSTATUTORY PROTECTIONS CITED:\n${(disputeLetterData.statutoryCitations || []).join('\n')}`;
+    const content = editableLetterText || (disputeLetterData ? `${disputeLetterData.letterSubject}\n\n${disputeLetterData.fullLetterBody}` : '');
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Formal_Hospital_Dispute_Letter_${Date.now()}.txt`;
+    link.download = `Hospital_Dispute_Letter_Draft_${Date.now()}.txt`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -1294,27 +1321,31 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Formal Dispute Letter Generator Banner */}
-                  <div className="bg-gradient-to-r from-teal-50 via-cyan-50 to-emerald-50 border-2 border-teal-400/80 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:border-teal-500 transition">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-600 text-white shadow-xs">
-                          Legal Defense Pack
-                        </span>
-                        <span className="text-xs font-bold text-slate-900">Hospital-Ready Formal Dispute Letter</span>
+                  {/* Dynamic Problem-Specific Banner */}
+                  {hasDisputeElements && (
+                    <div className="bg-gradient-to-r from-teal-50 via-cyan-50 to-emerald-50 border-2 border-teal-300 rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-700 text-white">
+                            Personalized Letter
+                          </span>
+                          <span className="text-xs font-bold text-slate-900">
+                            {hasArbitration ? 'Ready to contest arbitration in writing?' : 'Ready to contest out-of-pocket charges?'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 max-w-lg leading-relaxed">
+                          We identified {analysis?.topConcerns?.length || 2} specific clauses in your document. Generate a formal, editable draft requesting review or amendment before signing.
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-600 max-w-lg leading-relaxed">
-                        Need to contest surprise balance billing or strike arbitration clauses? Generate an official, legally cited dispute letter ready for certified mail.
-                      </p>
+                      <button
+                        onClick={handleOpenDisputeModal}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shrink-0 shadow-md"
+                      >
+                        <FileText className="w-4 h-4 text-teal-400"/>
+                        <span>Get My Personalized Letter — $9</span>
+                      </button>
                     </div>
-                    <button
-                      onClick={handleOpenDisputeModal}
-                      className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shrink-0 shadow-md hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      <FileText className="w-4 h-4 text-teal-400"/>
-                      Generate Dispute Letter ($9)
-                    </button>
-                  </div>
+                  )}
 
                   {/* 30-Second Snapshot */}
                   {analysis.snapshot30s && (
@@ -1748,10 +1779,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Formal Dispute & Checkout Modal */}
+      {/* Optimized Dispute Letter Modal with Deliverables & Hybrid Sample */}
       {showDisputeModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 print:hidden">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[92vh] flex flex-col">
             <button 
               onClick={() => setShowDisputeModal(false)} 
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-700"
@@ -1759,100 +1790,139 @@ export default function App() {
               <X className="w-5 h-5"/>
             </button>
 
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-9 h-9 rounded-2xl bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center">
-                <Scale className="w-5 h-5"/>
+            {/* Modal Header */}
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-10 h-10 rounded-2xl bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center shrink-0">
+                <FileText className="w-5 h-5"/>
               </div>
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
-                  Formal Hospital Dispute & Modification Packet
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Your Personalized Hospital Dispute Letter
                 </h3>
-                <p className="text-[11px] text-slate-500">Certified consumer advocacy letter cited under statutory protections</p>
+                <p className="text-xs text-slate-500">
+                  Prepared using the specific clauses and issues identified in your document
+                </p>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pr-1 my-3 space-y-3 text-xs">
+            <div className="flex-1 overflow-y-auto pr-1 space-y-4 text-xs">
               {letterLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-teal-600 gap-2">
                   <Sparkles className="w-6 h-6 animate-spin"/>
-                  <span className="text-xs text-slate-500">Drafting formal legal dispute letter in {targetLanguage}...</span>
+                  <span className="text-xs text-slate-500">Drafting personalized dispute letter in {targetLanguage}...</span>
                 </div>
               ) : disputeLetterData ? (
                 <>
                   {!isLetterUnlocked ? (
-                    <div className="space-y-3">
-                      {/* Proof of Customization Badges */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center gap-2 text-[11px]">
-                        <span className="font-semibold text-slate-500">Document Grounding:</span>
-                        <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md font-bold text-slate-800">
-                          {analysis.documentType || 'Surgical Agreement'}
+                    <>
+                      {/* Clear Deliverables Checklist */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                        <span className="text-[11px] font-bold text-slate-900 uppercase tracking-wider block mb-1">
+                          Your purchase includes:
                         </span>
-                        <span className="bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md font-bold text-teal-800">
-                          ✓ No Surprises Act Cited
-                        </span>
-                        <span className="bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md font-bold text-rose-800">
-                          ✓ {analysis.topConcerns?.length || 2} Clauses Contested
-                        </span>
-                      </div>
-
-                      {/* Blurred Teaser with Lock */}
-                      <div className="relative rounded-2xl border border-slate-200 p-4 bg-slate-50 overflow-hidden">
-                        <div className="filter blur-[3.5px] select-none text-slate-400 font-mono text-[11px] space-y-2 leading-relaxed">
-                          <p>RE: FORMAL DISPUTE OF UNBUNDLED SURGICAL CHARGES AND SECTION 4.2 ARBITRATION COVENANTS</p>
-                          <p>Dear Billing Administrator and Patient Relations Department,</p>
-                          <p>I am writing to formally dispute the financial liabilities outlined in the agreement dated October 2026. Pursuant to the No Surprises Act (42 U.S.C. § 300gg-111), balance billing for non-contracted ancillary providers without informed statutory consent is unlawful...</p>
-                          <p>Furthermore, I demand an itemized statement detailing all CPT and HCPCS codes before any balance is recognized...</p>
-                        </div>
-
-                        <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center text-white">
-                          <div className="w-11 h-11 rounded-2xl bg-white/20 text-white flex items-center justify-center mb-2">
-                            <Lock className="w-5 h-5 text-teal-300"/>
+                        <div className="space-y-1.5 text-xs text-slate-700">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0"/>
+                            <span>A formal letter tailored to the findings in your document</span>
                           </div>
-                          <h4 className="text-sm font-bold">Unlock Full Hospital Dispute Packet</h4>
-                          <p className="text-xs text-slate-200 max-w-sm mt-1 mb-3 leading-relaxed">
-                            Customized legal letter citing federal billing protections, demand ledger checklist, and certified mail delivery instructions.
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0"/>
+                            <span>References to relevant clauses and supporting excerpts</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0"/>
+                            <span>Applicable legal citations, where verified</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0"/>
+                            <span>Requests for clarification, amendment, or itemized billing as appropriate</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0"/>
+                            <span>Copyable text and a downloadable, fully editable file</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Hybrid Preview: Sample Letter Preview */}
+                      <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
+                        <div className="bg-slate-100/80 px-4 py-2 border-b border-slate-200 flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-slate-700">Sample letter preview</span>
+                          <span className="text-slate-400 italic">Illustrative example</span>
+                        </div>
+                        
+                        <div className="p-4 space-y-2 font-mono text-xs text-slate-800 leading-relaxed">
+                          <p className="font-bold text-slate-900">
+                            RE: Request for clarification and review of consent terms
                           </p>
-                          
-                          <a
-                            href={LEMON_SQUEEZY_CHECKOUT_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-6 py-2.5 bg-teal-400 hover:bg-teal-300 text-slate-950 rounded-xl font-black text-xs transition shadow-lg inline-flex items-center gap-1.5"
-                          >
-                            <span>Unlock Now ($9.00) • Instant Download</span>
-                            <ExternalLink className="w-3.5 h-3.5"/>
-                          </a>
-                          <span className="text-[10px] text-slate-300 mt-2 font-medium">
-                            🔒 One-time payment • No subscription • Instant download
-                          </span>
+                          <p className="text-slate-700">
+                            Dear Patient Relations Team,
+                          </p>
+                          <p className="text-slate-600">
+                            After reviewing the surgical consent document provided to me, I request clarification of the dispute-resolution provision identified in Section 4.2, including its scope and whether an amendment is available.
+                          </p>
+                          <p className="text-[11px] text-slate-400 italic">
+                            Additional document-specific requests and supporting references...
+                          </p>
+
+                          {/* Locked Section Indicator */}
+                          <div className="relative mt-2 p-3.5 rounded-xl bg-white border border-dashed border-slate-300 flex items-center justify-center gap-2 text-center">
+                            <Lock className="w-4 h-4 text-teal-600"/>
+                            <span className="font-bold text-slate-700 text-xs">
+                              Personalized sections available after purchase
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
+
+                      {/* Price & Checkout CTA */}
+                      <div className="p-4 bg-teal-50/70 border border-teal-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                        <div>
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-black text-slate-950">$9.00</span>
+                            <span className="text-[10px] font-bold text-teal-800 uppercase px-2 py-0.5 bg-teal-200/60 rounded-md">
+                              One-time purchase
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 mt-0.5">
+                            No subscription. Review and edit the letter before sending.
+                          </p>
+                        </div>
+
+                        <a
+                          href={LEMON_SQUEEZY_CHECKOUT_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full sm:w-auto px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl font-black text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span>Get My Personalized Letter — $9</span>
+                          <ExternalLink className="w-3.5 h-3.5"/>
+                        </a>
+                      </div>
+
+                      {/* Honest Disclaimer */}
+                      <p className="text-[10px] text-slate-400 text-center leading-normal">
+                        Educational self-advocacy tool. Generates an editable draft, not legal representation or guarantee of results.
+                      </p>
+                    </>
                   ) : (
+                    /* Unlocked Editable Document Experience */
                     <div className="space-y-3">
-                      <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600"/>
-                        Letter Unlocked! Ready to download or copy.
+                      <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-xl text-xs font-semibold flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600"/>
+                          Personalized draft unlocked! You can edit any line directly below before saving.
+                        </span>
                       </div>
 
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 font-mono text-xs text-slate-800 whitespace-pre-line leading-relaxed max-h-60 overflow-y-auto">
-                        <strong>{disputeLetterData.letterSubject}</strong>
-                        {'\n\n'}
-                        {disputeLetterData.fullLetterBody}
+                      <div className="relative">
+                        <textarea
+                          rows={14}
+                          value={editableLetterText}
+                          onChange={(e) => setEditableLetterText(e.target.value)}
+                          className="w-full p-4 bg-slate-50 border border-slate-300 rounded-2xl font-mono text-xs text-slate-800 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition"
+                        />
                       </div>
-
-                      {disputeLetterData.statutoryCitations?.length > 0 && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 block mb-1">
-                            Statutory Laws Cited:
-                          </span>
-                          <ul className="list-disc list-inside text-[11px] text-slate-700 space-y-0.5">
-                            {disputeLetterData.statutoryCitations.map((cite, i) => (
-                              <li key={i}>{cite}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
                     </div>
                   )}
                 </>
@@ -1861,7 +1931,8 @@ export default function App() {
               )}
             </div>
 
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            {/* Modal Bottom Controls */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
               <button 
                 onClick={() => setShowDisputeModal(false)} 
                 className="px-3.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 font-semibold"
@@ -1873,11 +1944,11 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(`${disputeLetterData.letterSubject}\n\n${disputeLetterData.fullLetterBody}`);
+                      navigator.clipboard.writeText(editableLetterText);
                       setCopiedLetter(true);
                       setTimeout(() => setCopiedLetter(false), 2000);
                     }}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
                   >
                     {copiedLetter ? <Check className="w-3.5 h-3.5 text-teal-600"/> : <Copy className="w-3.5 h-3.5"/>}
                     <span>{copiedLetter ? 'Copied' : 'Copy Text'}</span>
