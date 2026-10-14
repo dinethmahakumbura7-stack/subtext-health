@@ -102,6 +102,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'SubText Health API' });
 });
 
+// Health check for uptime monitors & warm-up pings
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Root endpoint for base URL pings
+app.get('/', (req, res) => {
+  res.status(200).send('SubText Health backend is alive.');
+});
+
 app.post('/api/analyze', async (req, res) => {
   try {
     const { textContent, language = 'English' } = req.body;
