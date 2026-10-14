@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 
 const API_BASE_URL = 'https://subtext-health.onrender.com';
-const LEMON_SQUEEZY_CHECKOUT_URL = 'https://subtext-health.lemonsqueezy.com/checkout/buy/0fa9056a-d868-40dd-ac24-5e01a97abd45';
+const GUMROAD_CHECKOUT_URL = 'https://mahakumbura.gumroad.com/l/subtext-dispute-letter';
 
 const UI_STRINGS = {
   English: {
@@ -1890,7 +1890,7 @@ export default function App() {
                         </div>
 
                         <a
-                          href={LEMON_SQUEEZY_CHECKOUT_URL}
+                          href={GUMROAD_CHECKOUT_URL}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-full sm:w-auto px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl font-black text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
