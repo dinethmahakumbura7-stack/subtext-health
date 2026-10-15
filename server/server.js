@@ -127,7 +127,7 @@ app.post('/api/analyze', async (req, res) => {
         { role: 'system', content: getAdvocacyPrompt(language) },
         { role: 'user', content: `Please review and advocate for the patient with this text:\n\n${textContent}` }
       ],
-      model: 'llama-3.1-8b-instant',
+      model: 'openai/gpt-oss-120b',
       response_format: { type: 'json_object' },
       temperature: 0.2
     });
@@ -169,7 +169,7 @@ app.post('/api/analyze-file', upload.single('file'), async (req, res) => {
             ]
           }
         ],
-        model: 'llama-3.2-11b-vision-preview'
+        model: 'qwen/qwen3.8-27b'
       });
       extractedText = visionRes.choices[0].message.content;
     } else {
@@ -185,7 +185,7 @@ app.post('/api/analyze-file', upload.single('file'), async (req, res) => {
         { role: 'system', content: getAdvocacyPrompt(language) },
         { role: 'user', content: `Please review and advocate for the patient with this text:\n\n${extractedText}` }
       ],
-      model: 'llama-3.1-8b-instant',
+      model: 'openai/gpt-oss-120b',
       response_format: { type: 'json_object' },
       temperature: 0.2
     });
@@ -220,7 +220,7 @@ Return ONLY a valid JSON object:
           content: `Clause: ${clauseTitle}\nQuote: "${originalQuote}"\nMeaning: ${plainExplanation}`
         }
       ],
-      model: 'llama-3.1-8b-instant',
+      model: 'openai/gpt-oss-120b',
       response_format: { type: 'json_object' },
       temperature: 0.2
     });
@@ -278,7 +278,7 @@ Return ONLY a valid JSON object matching this structure:
         { role: 'system', content: 'You are a healthcare advocate. Output valid JSON only.' },
         { role: 'user', content: prompt }
       ],
-      model: 'llama-3.1-8b-instant',
+      model: 'openai/gpt-oss-120b',
       response_format: { type: 'json_object' },
       temperature: 0.2
     });
