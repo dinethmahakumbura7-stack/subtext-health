@@ -9,7 +9,7 @@ let pdfParse;
 try {
   pdfParse = require('pdf-parse');
 } catch (e) {
-  console.warn('pdf-parse skipped.');
+  console.warn('pdf-parse module skipped.');
 }
 
 dotenv.config();
@@ -38,11 +38,14 @@ async function getWorkingGroqModel() {
   try {
     const list = await groq.models.list();
     const available = (list.data || []).map(m => m.id);
+    console.log('Available models on your Groq key:', available);
+
     const chatModels = available.filter(id => 
       !id.includes('whisper') && 
       !id.includes('guard') && 
       !id.includes('vision')
     );
+
     if (chatModels.length > 0) {
       resolvedModel = chatModels[0];
       return resolvedModel;
@@ -75,40 +78,35 @@ function resolveIncomingText(req) {
   );
 }
 
-// Health endpoints
 app.get('/', (req, res) => res.status(200).send('SubText Health backend is live.'));
 app.get('/api/health', (req, res) => res.status(200).json({ status: 'OK' }));
 
 /**
- * Audit & Analysis Endpoint with Full Comprehensive Schema
+ * Universal Audit Route
  */
 app.post(['/api/analyze', '/analyze', '/api/audit', '/audit'], async (req, res) => {
   try {
     const rawText = resolveIncomingText(req);
-    const targetLanguage = req.body?.language || 'English (US)';
+    const targetLanguage = req.body?.language || req.body?.targetLanguage || 'English (US)';
 
     const textToAnalyze = rawText && rawText.trim().length > 0 
       ? rawText 
       : `HOSPITAL SURGICAL CONSENT & FINANCIAL WAIVER:
 SECTION 4.2 - BINDING ARBITRATION: The signatory forfeits any right to trial by jury and submits all malpractice claims exclusively to private arbitration.
-SECTION 8 - OUT-OF-NETWORK COVERAGE: Patient authorizes care by supplemental surgical assistants or on-call anesthesiologists, and acknowledges responsibility for all out-of-network balance billings.`;
+SECTION 8 - OUT-OF-NETWORK COVERAGE: Patient authorizes care by supplemental surgical assistants or on-call anesthesiologists.`;
 
-    const systemPrompt = `You are an elite patient advocacy committee consisting of a Medical Doctor (MD), a Registered Nurse (RN), and a Healthcare Consumer Rights Attorney (JD).
-Analyze the provided medical paperwork.
+    const systemPrompt = `You are an elite patient advocacy committee consisting of an MD, an RN, and a Healthcare Consumer Rights JD.
+Analyze the provided healthcare document or waiver.
+Target language: ${targetLanguage}.
 
-Target response language: ${targetLanguage}. If the language is Sinhala (සිංහල), Tamil (தமிழ்), or Spanish (Español), translate the script, summaries, and caregiver tasks into that language.
-
-Respond ONLY with a valid JSON object matching this EXACT full schema:
+Respond ONLY with a valid JSON object matching this EXACT schema:
 {
-  "summary": "Plain language patient summary explaining the document's risks in 2-3 clear sentences.",
-  "clinicalSummary": "Formal clinical and statutory summary with citations (42 U.S.C. § 300gg-111, CPT, ICD-10).",
-  "documentCategory": "Clinical Record",
-  "riskLevel": "High",
   "riskScore": 92,
-  "potentialSavings": "$2,400 - $6,500",
-  "script": "I am calling to formally dispute the charges on this account under the federal No Surprises Act (42 U.S.C. § 300gg-111). Please place this bill on administrative hold and provide a complete itemized UB-04 statement with all CPT and revenue codes before any further collection action.",
-  "advocateScript": "I am calling to formally dispute the charges on this account under the federal No Surprises Act (42 U.S.C. § 300gg-111). Please place this bill on administrative hold and provide a complete itemized UB-04 statement with all CPT and revenue codes before any further collection action.",
-  "whatToSay": "I am calling to formally dispute the charges on this account under the federal No Surprises Act (42 U.S.C. § 300gg-111). Please place this bill on administrative hold and provide a complete itemized UB-04 statement with all CPT and revenue codes before any further collection action.",
+  "riskLevel": "High",
+  "documentCategory": "Clinical Record",
+  "plainSummary": "Plain language summary explaining document risks to the patient in 2-3 clear sentences.",
+  "clinicalSummary": "Clinical and statutory review citing 42 U.S.C. § 300gg-111 and billing code regulations.",
+  "script": "I am calling to formally dispute the charges on this account under the federal No Surprises Act (42 U.S.C. § 300gg-111). Please place this bill on administrative hold and provide a complete itemized UB-04 CMS-1450 statement with all CPT and revenue codes before any further collection action.",
   "scriptTranslations": {
     "EN": "I am calling to formally dispute the charges on this account under the federal No Surprises Act (42 U.S.C. § 300gg-111). Please place this bill on administrative hold and provide a complete itemized UB-04 statement.",
     "SI": "මම No Surprises Act පනත යටතේ මෙම බිල්පත පිළිබඳව විරෝධය පළ කරමි. කරුණාකර මෙම ගිණුම අත්හිටුවා සියලුම CPT කේත සහිත විස්තරාත්මක බිල්පතක් ලබා දෙන්න.",
@@ -121,7 +119,7 @@ Respond ONLY with a valid JSON object matching this EXACT full schema:
       "title": "Mandatory Binding Arbitration Clause",
       "severity": "High",
       "statute": "Federal Arbitration Act (9 U.S.C. § 1)",
-      "explanation": "Section 4.2 forces you to forfeit your constitutional right to trial by jury for any malpractice or negligence claims.",
+      "explanation": "Section 4.2 forces you to forfeit your constitutional right to trial by jury for malpractice claims.",
       "action": "Request an arbitration opt-out form or strike through Section 4.2 before signing.",
       "quote": "SECTION 4.2 - BINDING ARBITRATION: The signatory forfeits any right to trial by jury and submits all malpractice claims exclusively to private arbitration at the patient's shared expense."
     },
@@ -160,14 +158,6 @@ Respond ONLY with a valid JSON object matching this EXACT full schema:
       "priority": "High",
       "completed": false
     }
-  ],
-  "findings": [
-    {
-      "title": "Mandatory Binding Arbitration Clause",
-      "statute": "Federal Arbitration Act",
-      "explanation": "Waives jury trial rights.",
-      "action": "Strike Section 4.2 before signing."
-    }
   ]
 }
 Return only valid JSON without markdown wrapping.`;
@@ -177,7 +167,7 @@ Return only valid JSON without markdown wrapping.`;
       const completion = await groq.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Analyze:\n\n${textToAnalyze.slice(0, 7000)}` }
+          { role: 'user', content: `Analyze this healthcare paperwork:\n\n${textToAnalyze.slice(0, 7000)}` }
         ],
         model: activeModel,
         temperature: 0.1,
@@ -193,19 +183,15 @@ Return only valid JSON without markdown wrapping.`;
       });
 
     } catch (llmErr) {
-      console.warn('Groq dynamic call fallback used:', llmErr?.message || llmErr);
+      console.warn('Groq model fallback triggered:', llmErr?.message || llmErr);
 
-      // Deterministic advocate fallback with 100% of all UI fields populated
-      const fullFallback = {
-        summary: "The consent includes a prohibited binding arbitration clause for malpractice claims and forces the patient to accept out-of-network balance billing, both likely violating the No Surprises Act. Immediate action is needed to remove or renegotiate these provisions.",
-        clinicalSummary: "Review under 42 U.S.C. § 300gg-111 reveals non-compliant balance billing covenants regarding facility-based surgical assistants and anesthesiology. Mandatory pre-dispute arbitration conflicts with state patient rights protections.",
-        documentCategory: "Clinical Record",
-        riskLevel: "High",
+      const fallbackAudit = {
         riskScore: 92,
-        potentialSavings: "$2,400 - $6,500",
+        riskLevel: "High",
+        documentCategory: "Clinical Record",
+        plainSummary: "The consent includes a prohibited binding arbitration clause for malpractice claims and forces the patient to accept out-of-network balance billing, both likely violating the No Surprises Act. Immediate action is needed to remove or renegotiate these provisions.",
+        clinicalSummary: "Formal review under 42 U.S.C. § 300gg-111 identifies non-compliant balance billing covenants regarding facility-based surgical assistants and anesthesiology. Mandatory pre-dispute arbitration conflicts with state patient rights protections.",
         script: "I am calling to formally dispute the charges on this account under the federal No Surprises Act (42 U.S.C. § 300gg-111). Please place this bill on administrative hold and provide a complete itemized UB-04 CMS-1450 statement with all CPT and revenue codes before any further collection action.",
-        advocateScript: "I am calling to formally dispute the charges on this account under the federal No Surprises Act (42 U.S.C. § 300gg-111). Please place this bill on administrative hold and provide a complete itemized UB-04 CMS-1450 statement with all CPT and revenue codes before any further collection action.",
-        whatToSay: "I am calling to formally dispute the charges on this account under the federal No Surprises Act (42 U.S.C. § 300gg-111). Please place this bill on administrative hold and provide a complete itemized UB-04 CMS-1450 statement with all CPT and revenue codes before any further collection action.",
         scriptTranslations: {
           EN: "I am calling to formally dispute the charges on this account under the federal No Surprises Act (42 U.S.C. § 300gg-111). Please place this bill on administrative hold and provide a complete itemized UB-04 statement.",
           SI: "මම No Surprises Act පනත යටතේ මෙම බිල්පත පිළිබඳව විරෝධය පළ කරමි. කරුණාකර මෙම ගිණුම අත්හිටුවා සියලුම CPT කේත සහිත විස්තරාත්මක බිල්පතක් ලබා දෙන්න.",
@@ -257,74 +243,19 @@ Return only valid JSON without markdown wrapping.`;
             priority: "High",
             completed: false
           }
-        ],
-        findings: [
-          {
-            title: "Mandatory Binding Arbitration Clause",
-            statute: "Federal Arbitration Act",
-            explanation: "Waives jury trial rights.",
-            action: "Strike Section 4.2 before signing."
-          }
         ]
       };
 
       return res.status(200).json({
         success: true,
-        audit: fullFallback,
-        ...fullFallback
+        audit: fallbackAudit,
+        ...fallbackAudit
       });
     }
 
   } catch (error) {
     console.error('Audit Error:', error);
     return res.status(500).json({ error: 'Failed to process healthcare audit.' });
-  }
-});
-
-/**
- * Dispute Letter Generator Endpoint
- */
-app.post(['/api/generate-letter', '/generate-letter'], async (req, res) => {
-  try {
-    const rawText = resolveIncomingText(req);
-    const patient = req.body?.patientName || '[Patient Name]';
-    const facility = req.body?.facilityName || '[Hospital / Facility Billing Department]';
-
-    const staticNotice = `FORMAL NOTICE OF MEDICAL DEBT DISPUTE & VALIDATION DEMAND
-DATE: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-SENT VIA: Certified Mail with Return Receipt Requested
-
-TO:
-${facility}
-Billing Compliance & Patient Financial Services
-
-FROM:
-${patient}
-
-RE: Account Dispute & Formal Validation Request
-STATUTORY REFERENCE: 42 U.S.C. § 300gg-111 (No Surprises Act) & 15 U.S.C. § 1692g (FDCPA)
-
-Dear Billing Compliance Director,
-
-Please be advised that I am formally disputing the validity and amounts asserted regarding the referenced account.
-
-1. DEMAND FOR STATUTORY VALIDATION: Pursuant to federal consumer protections, I demand a complete, itemized CMS-1450 / UB-04 statement showing all individual CPT/HCPCS procedure codes, National Drug Codes (NDC), and documented medical necessity notes.
-
-2. FEDERAL NO SURPRISES ACT PROTECTIONS: Under 42 U.S.C. § 300gg-111, out-of-network balance billing for emergency medical services and non-consensual ancillary providers is unlawful.
-
-3. DISPUTED ARBITRATION & FINANCIAL CLAUSES: Any purported pre-dispute mandatory arbitration agreements or waivers signed under conditions of acute clinical care are disputed as unconscionable.
-
-4. ADMINISTRATIVE HOLD DEMAND: Place this account on immediate administrative hold pending validation.
-
-Sincerely,
-
-_____________________________________________
-${patient}
-Authorized Consumer / Disputant`;
-
-    return res.status(200).json({ success: true, letter: staticNotice });
-  } catch (error) {
-    return res.status(500).json({ error: 'Failed to generate dispute notice.' });
   }
 });
 
