@@ -1,146 +1,307 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import multer from 'multer';
+import { createRequire } from 'module';
 import Groq from 'groq-sdk';
+
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.use(express.json({ limit: '10mb' }));
+app.use(cors());
+app.use(express.json({ limit: '25mb' }));
 
-// Groq SDK Initialization
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage, 
+  limits: { fileSize: 20 * 1024 * 1024 } 
+});
+
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-// UptimeRobot & Health Check Endpoints
-app.get('/', (req, res) => {
-  res.status(200).send('SubText Health API is active and running.');
-});
+const getAdvocacyPrompt = (language) => `
+You are SubText Health, an empathetic patient advocate AI.
+Analyze the provided healthcare document (surgical consent, emergency notice, or discharge prescription).
 
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
-});
+CRITICAL MULTILINGUAL MANDATE:
+The requested language is: "${language}".
+You MUST translate EVERY SINGLE descriptive text field into "${language}" (Sinhala Unicode for Sinhala, Tamil Unicode for Tamil, Spanish for Spanish, English for English).
+This includes:
+- "documentType"
+- "primaryTalkingScript"
+- "financialLiabilityWarning"
+- All values in "snapshot30s" (procedure, legal, insurance, financial)
+- In "topConcerns": "title", "plainExplanation", "whatToAsk", "severity"
+- In "medicalGlossary": "definition", "whyItMatters", "askDoctor"
+- In "beforeYouSignChecklist": all checklist strings
+- In "medicationTimeline": "instructions"
+- In "redFlags": all trigger strings
+- In "summary": "simplified" and "standard"
 
-/**
- * 1. AUDIT ENDPOINT: Analyzes document, flags upcoding, balance billing, and arbitration clauses
- */
-app.post('/api/audit', async (req, res) => {
-  try {
-    const { documentText } = req.body;
+Do NOT keep English placeholder values if the language is not English. Keep ONLY "originalQuote" in its original verbatim text from the document.
 
-    if (!documentText || documentText.trim().length === 0) {
-      return res.status(400).json({ error: 'Document text is required for analysis.' });
-    }
-
-    const systemPrompt = `You are an elite US healthcare consumer rights advocate and certified medical billing auditor.
-Analyze the provided medical paperwork or billing ledger.
-
-Identify and evaluate:
-1. Violations of the federal No Surprises Act (42 U.S.C. § 300gg-111) for out-of-network emergency room care and non-consensual ancillary specialists (anesthesiology, radiology, pathology).
-2. Emergency room evaluation upcoding (e.g., CPT 99285 without documented high-complexity medical decision-making).
-3. Unbundled procedures, duplicate line items, and unreasonable chargemaster facility fees.
-4. Mandatory binding arbitration covenants and hidden debt collection waivers in patient admission agreements.
-
-Format your entire response strictly as a JSON object matching this schema:
+Return ONLY a valid JSON object matching this exact schema:
 {
-  "summary": "Brief 2-3 sentence overview of findings",
-  "riskLevel": "High" | "Medium" | "Low",
-  "potentialSavingsEstimate": "Estimated dollar range or percentage if applicable",
-  "violations": [
+  "documentType": "string",
+  "riskScore": 85,
+  "riskLevel": "High Attention" | "Review Needed" | "Routine Info",
+  "attentionCount": 2,
+  "primaryTalkingScript": "string",
+  "financialLiabilityWarning": "string or null",
+  "snapshot30s": {
+    "procedure": "string",
+    "legal": "string",
+    "insurance": "string",
+    "financial": "string"
+  },
+  "topConcerns": [
     {
-      "title": "Short violation title",
-      "statute": "Statutory citation (e.g., 42 U.S.C. § 300gg-111)",
-      "explanation": "Plain-English explanation of why this charge or clause is improper",
-      "recommendedAction": "Exact step the patient must take to challenge it"
+      "title": "string",
+      "sourceSection": "string",
+      "originalQuote": "string verbatim quote",
+      "plainExplanation": "string",
+      "whatToAsk": "string",
+      "severity": "High Attention" | "Review",
+      "confidence": "Verified"
     }
   ],
-  "itemizedFlags": [
+  "summary": {
+    "simplified": "string",
+    "standard": "string"
+  },
+  "beforeYouSignChecklist": [
+    "string",
+    "string"
+  ],
+  "medicalGlossary": [
     {
-      "code": "CPT/HCPCS or line item name",
-      "description": "Short description",
-      "issue": "Specific error identified (e.g., Upcoding, Unbundling, Balance Billing)"
+      "term": "string",
+      "definition": "string",
+      "whyItMatters": "string",
+      "askDoctor": "string"
     }
+  ],
+  "medicationTimeline": [
+    {
+      "timeSlot": "Morning / Night / etc",
+      "medicationName": "string",
+      "instructions": "string"
+    }
+  ],
+  "redFlags": [
+    "string"
   ]
 }
-Return only valid JSON. Do not include markdown backticks.`;
+`;
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Analyze this medical text:\n\n${documentText.slice(0, 6000)}` }
-      ],
-      model: 'llama3-70b-8192',
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
-    });
-
-    const parsedAudit = JSON.parse(completion.choices[0]?.message?.content || '{}');
-    return res.status(200).json({ success: true, audit: parsedAudit });
-  } catch (error) {
-    console.error('Audit Error:', error);
-    return res.status(500).json({ error: 'Failed to complete document audit.' });
-  }
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'SubText Health API' });
 });
 
-/**
- * 2. FREE DISPUTE LETTER GENERATOR: Fully unlocked for the hackathon
- */
-app.post('/api/generate-letter', async (req, res) => {
+// Health check for uptime monitors & warm-up pings
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Root endpoint for base URL pings
+app.get('/', (req, res) => {
+  res.status(200).send('SubText Health backend is alive.');
+});
+
+app.post('/api/analyze', async (req, res) => {
   try {
-    const { documentText, auditFindings, patientName, facilityName } = req.body;
-
-    const patient = patientName?.trim() || '[Patient Name]';
-    const facility = facilityName?.trim() || '[Hospital / Facility Billing Department]';
-
-    const systemPrompt = `You are an expert patient rights attorney and medical billing transparency advocate.
-Draft an official, legally cited Medical Debt Dispute and Statutory Validation Notice ready to be printed and mailed.
-
-Legal frameworks to cite where applicable:
-- Federal No Surprises Act (42 U.S.C. § 300gg-111) regarding illegal balance billing.
-- Fair Debt Collection Practices Act (15 U.S.C. § 1692g) requiring written verification before debt validation.
-- Demand for a complete itemized UB-04 / CMS-1450 statement with individual CPT and HCPCS codes.
-- Formal demand placing the account on administrative hold and freezing collection transfers and credit bureau reporting pending dispute review.
-
-Include:
-- Formal header placeholders (Date, Certified Mail tracking placeholder, Sender, Recipient).
-- Clear Subject Line referencing account and formal dispute notice.
-- Factual background citing identified issues.
-- Explicit numbered statutory demands.
-- Formal signature block.
-
-Format as clean, ready-to-print plain text.`;
-
-    const userMessage = `Patient Name: ${patient}
-Facility Name: ${facility}
-Identified Audit Violations: ${JSON.stringify(auditFindings || [])}
-Relevant Bill Excerpt: ${documentText ? documentText.slice(0, 3000) : 'Standard emergency/hospital billing statement'}`;
+    const { textContent, language = 'English' } = req.body;
+    if (!textContent) {
+      return res.status(400).json({ error: 'Text content is required' });
+    }
 
     const completion = await groq.chat.completions.create({
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage }
+        { role: 'system', content: getAdvocacyPrompt(language) },
+        { role: 'user', content: `Please review and advocate for the patient with this text:\n\n${textContent}` }
       ],
-      model: 'llama3-70b-8192',
+      model: 'openai/gpt-oss-120b',
+      response_format: { type: 'json_object' },
       temperature: 0.2
     });
 
-    const letterContent = completion.choices[0]?.message?.content || '';
-    return res.status(200).json({ success: true, letter: letterContent });
+    const parsed = JSON.parse(completion.choices[0].message.content);
+    res.json(parsed);
   } catch (error) {
-    console.error('Letter Generation Error:', error);
-    return res.status(500).json({ error: 'Failed to generate dispute letter.' });
+    console.error('Text Analysis Error:', error);
+    res.status(500).json({ error: error.message || 'Error processing document analysis' });
+  }
+});
+
+app.post('/api/analyze-file', upload.single('file'), async (req, res) => {
+  try {
+    const language = req.body.language || 'English';
+    if (!req.file) {
+      return res.status(400).json({ error: 'No document file uploaded' });
+    }
+
+    let extractedText = '';
+
+    if (req.file.mimetype === 'application/pdf') {
+      const pdfData = await pdfParse(req.file.buffer);
+      extractedText = pdfData.text;
+    } else if (req.file.mimetype.startsWith('image/')) {
+      const base64Image = req.file.buffer.toString('base64');
+      const visionRes = await groq.chat.completions.create({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Extract and transcribe all readable medical, clinical, and financial text from this image document cleanly. Return only raw text.' },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${req.file.mimetype};base64,${base64Image}`
+                }
+              }
+            ]
+          }
+        ],
+        model: 'qwen/qwen3.8-27b'
+      });
+      extractedText = visionRes.choices[0].message.content;
+    } else {
+      extractedText = req.file.buffer.toString('utf-8');
+    }
+
+    if (!extractedText.trim()) {
+      return res.status(400).json({ error: 'Could not extract readable text from document' });
+    }
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: getAdvocacyPrompt(language) },
+        { role: 'user', content: `Please review and advocate for the patient with this text:\n\n${extractedText}` }
+      ],
+      model: 'openai/gpt-oss-120b',
+      response_format: { type: 'json_object' },
+      temperature: 0.2
+    });
+
+    const parsed = JSON.parse(completion.choices[0].message.content);
+    res.json(parsed);
+  } catch (error) {
+    console.error('File Analysis Error:', error);
+    res.status(500).json({ error: error.message || 'Error processing file upload' });
+  }
+});
+
+app.post('/api/clause-action', async (req, res) => {
+  try {
+    const { clauseTitle, originalQuote, plainExplanation, language = 'English' } = req.body;
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: `You are a patient advocate. Provide a practical negotiation script and legal protection brief in "${language}".
+Translate ALL fields into "${language}".
+Return ONLY a valid JSON object:
+{
+  "talkingScript": "polite, assertive sentence the patient can say directly to staff in ${language}",
+  "alternativeRequest": "specific modification the patient can ask to write into the agreement in ${language}",
+  "patientRight": "plain summary of patient protection laws or standard healthcare consumer rights in ${language}"
+}`
+        },
+        {
+          role: 'user',
+          content: `Clause: ${clauseTitle}\nQuote: "${originalQuote}"\nMeaning: ${plainExplanation}`
+        }
+      ],
+      model: 'openai/gpt-oss-120b',
+      response_format: { type: 'json_object' },
+      temperature: 0.2
+    });
+
+    const parsed = JSON.parse(completion.choices[0].message.content);
+    res.json(parsed);
+  } catch (error) {
+    console.error('Clause Action Error:', error);
+    res.status(500).json({ error: error.message || 'Error preparing negotiation brief' });
+  }
+});
+
+app.post('/api/generate-dispute-letter', async (req, res) => {
+  try {
+    const { documentType, concerns = [], language = 'English', patientName = 'Signatory Patient' } = req.body;
+
+    const concernsText = Array.isArray(concerns) && concerns.length > 0
+      ? concerns.map((c, i) => `${i + 1}. ${c.title || c.clauseTitle || 'Hazard'}: "${c.originalQuote || ''}" - ${c.plainExplanation || ''}`).join('\n')
+      : 'Unilateral arbitration clause and potential out-of-network balance billing charges.';
+
+    const prompt = `
+You are an expert patient rights advocate and healthcare consumer law specialist.
+Draft a formal, professional Hospital Billing Dispute & Waiver Amendment Letter in "${language}".
+
+Details:
+- Document Type: ${documentType || 'Healthcare Waiver / Financial Undertaking'}
+- Patient Name: ${patientName}
+- Contested Clauses / Risks:
+${concernsText}
+
+Requirements:
+1. Formal header addressing Hospital Billing / Patient Relations Department.
+2. Formal notice disputing unexpected out-of-network balance billing and mandatory arbitration covenants.
+3. Explicit demand for itemized CPT billing under statutory rules such as the No Surprises Act.
+4. Formal reservation of statutory rights and objection to unilateral dispute costs.
+5. 30-day response window.
+
+Return ONLY a valid JSON object matching this structure:
+{
+  "letterSubject": "FORMAL NOTICE OF BILLING DISPUTE & WAIVER MODIFICATION DEMAND",
+  "fullLetterBody": "full multi-paragraph letter string in ${language} formatted with clean line breaks (\\n\\n)",
+  "statutoryCitations": [
+    "No Surprises Act (42 U.S.C. § 300gg-111)",
+    "Patient Protection and Affordable Care Act - Section 2718"
+  ],
+  "recommendedActionChecklist": [
+    "Send via Certified Mail with Return Receipt Requested",
+    "Do not submit payment on disputed balance until itemized CPT codes are supplied"
+  ]
+}
+`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: 'You are a healthcare advocate. Output valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+      model: 'openai/gpt-oss-120b',
+      response_format: { type: 'json_object' },
+      temperature: 0.2
+    });
+
+    const parsed = JSON.parse(completion.choices[0].message.content);
+    return res.json(parsed);
+  } catch (error) {
+    console.error('Dispute Letter Generation Fallback Activated:', error);
+    return res.json({
+      letterSubject: 'FORMAL NOTICE OF BILLING DISPUTE & COVENANT AMENDMENT',
+      fullLetterBody: `DATE: ${new Date().toLocaleDateString()}\n\nTO: Hospital Billing Administrator & Patient Relations\n\nRE: Formal Dispute of Out-of-Network Balance Charges & Mandatory Arbitration Covenants\n\nDear Patient Relations Department,\n\nI am writing to formally contest the financial liability and binding arbitration terms stipulated in the recent admission paperwork. Pursuant to consumer protections under the No Surprises Act (42 U.S.C. § 300gg-111), patients cannot be balance-billed for non-contracted ancillary or out-of-network provider services without explicit, informed statutory notice.\n\nFurthermore, I formally reserve all rights to standard civil recourse and dispute the unilateral assignment of private arbitration costs.\n\nPlease furnish a complete, itemized billing summary containing all respective CPT and HCPCS codes within 30 business days.\n\nSincerely,\n\nSignatory Patient`,
+      statutoryCitations: [
+        'No Surprises Act (42 U.S.C. § 300gg-111)',
+        'Emergency Medical Treatment and Labor Act (EMTALA)'
+      ],
+      recommendedActionChecklist: [
+        'Deliver via Certified Mail with Return Receipt Requested',
+        'Maintain a timestamped copy with all signed admission receipts'
+      ]
+    });
   }
 });
 
 app.listen(port, () => {
-  console.log(`SubText Health backend running on port ${port}`);
+  console.log(`SubText Health Server running on port ${port}`);
 });
