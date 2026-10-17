@@ -32,7 +32,7 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-// Dynamic Model Resolver: selects whichever active text model is available
+// Dynamic Model Resolver
 let cachedActiveModel = null;
 async function getActiveGroqModel() {
   if (cachedActiveModel) return cachedActiveModel;
@@ -70,80 +70,81 @@ async function getActiveGroqModel() {
   return 'llama-3.3-70b-versatile';
 }
 
-const getAdvocacyPrompt = (language) => `
-You are SubText Health, an empathetic patient advocate AI.
-Analyze the provided healthcare document (surgical consent, emergency notice, or discharge prescription).
-
-CRITICAL MULTILINGUAL MANDATE:
-The requested language is: "${language}".
-You MUST translate EVERY SINGLE descriptive text field into "${language}" (Sinhala Unicode for Sinhala, Tamil Unicode for Tamil, Spanish for Spanish, English for English).
-This includes:
-- "documentType"
-- "primaryTalkingScript"
-- "financialLiabilityWarning"
-- All values in "snapshot30s" (procedure, legal, insurance, financial)
-- In "topConcerns": "title", "plainExplanation", "whatToAsk", "severity"
-- In "medicalGlossary": "definition", "whyItMatters", "askDoctor"
-- In "beforeYouSignChecklist": all checklist strings
-- In "medicationTimeline": "instructions"
-- In "redFlags": all trigger strings
-- In "summary": "simplified" and "standard"
-
-Do NOT keep English placeholder values if the language is not English. Keep ONLY "originalQuote" in its original verbatim text from the document.
-
-Return ONLY a valid JSON object matching this exact schema:
-{
-  "documentType": "string",
-  "riskScore": 85,
-  "riskLevel": "High Attention" | "Review Needed" | "Routine Info",
-  "attentionCount": 2,
-  "primaryTalkingScript": "string",
-  "financialLiabilityWarning": "string or null",
-  "snapshot30s": {
-    "procedure": "string",
-    "legal": "string",
-    "insurance": "string",
-    "financial": "string"
-  },
-  "topConcerns": [
-    {
-      "title": "string",
-      "sourceSection": "string",
-      "originalQuote": "string verbatim quote",
-      "plainExplanation": "string",
-      "whatToAsk": "string",
-      "severity": "High Attention" | "Review",
-      "confidence": "Verified"
-    }
-  ],
-  "summary": {
-    "simplified": "string",
-    "standard": "string"
-  },
-  "beforeYouSignChecklist": [
-    "string",
-    "string"
-  ],
-  "medicalGlossary": [
-    {
-      "term": "string",
-      "definition": "string",
-      "whyItMatters": "string",
-      "askDoctor": "string"
-    }
-  ],
-  "medicationTimeline": [
-    {
-      "timeSlot": "Morning / Night / etc",
-      "medicationName": "string",
-      "instructions": "string"
-    }
-  ],
-  "redFlags": [
-    "string"
-  ]
+function getAdvocacyPrompt(language) {
+  return [
+    'You are SubText Health, an empathetic patient advocate AI.',
+    'Analyze the provided healthcare document (surgical consent, emergency notice, or discharge prescription).',
+    '',
+    'CRITICAL MULTILINGUAL MANDATE:',
+    `The requested language is: "${language}".`,
+    `You MUST translate EVERY SINGLE descriptive text field into "${language}" (Sinhala Unicode for Sinhala, Tamil Unicode for Tamil, Spanish for Spanish, English for English).`,
+    'This includes:',
+    '- documentType',
+    '- primaryTalkingScript',
+    '- financialLiabilityWarning',
+    '- All values in snapshot30s (procedure, legal, insurance, financial)',
+    '- In topConcerns: title, plainExplanation, whatToAsk, severity',
+    '- In medicalGlossary: definition, whyItMatters, askDoctor',
+    '- In beforeYouSignChecklist: all checklist strings',
+    '- In medicationTimeline: instructions',
+    '- In redFlags: all trigger strings',
+    '- In summary: simplified and standard',
+    '',
+    'Do NOT keep English placeholder values if the language is not English. Keep ONLY originalQuote in its original verbatim text from the document.',
+    '',
+    'Return ONLY a valid JSON object matching this schema:',
+    '{',
+    '  "documentType": "string",',
+    '  "riskScore": 85,',
+    '  "riskLevel": "High Attention",',
+    '  "attentionCount": 2,',
+    '  "primaryTalkingScript": "string",',
+    '  "financialLiabilityWarning": "string or null",',
+    '  "snapshot30s": {',
+    '    "procedure": "string",',
+    '    "legal": "string",',
+    '    "insurance": "string",',
+    '    "financial": "string"',
+    '  },',
+    '  "topConcerns": [',
+    '    {',
+    '      "title": "string",',
+    '      "sourceSection": "string",',
+    '      "originalQuote": "string",',
+    '      "plainExplanation": "string",',
+    '      "whatToAsk": "string",',
+    '      "severity": "High Attention",',
+    '      "confidence": "Verified"',
+    '    }',
+    '  ],',
+    '  "summary": {',
+    '    "simplified": "string",',
+    '    "standard": "string"',
+    '  },',
+    '  "beforeYouSignChecklist": [',
+    '    "string"',
+    '  ],',
+    '  "medicalGlossary": [',
+    '    {',
+    '      "term": "string",',
+    '      "definition": "string",',
+    '      "whyItMatters": "string",',
+    '      "askDoctor": "string"',
+    '    }',
+    '  ],',
+    '  "medicationTimeline": [',
+    '    {',
+    '      "timeSlot": "string",',
+    '      "medicationName": "string",',
+    '      "instructions": "string"',
+    '    }',
+    '  ],',
+    '  "redFlags": [',
+    '    "string"',
+    '  ]',
+    '}'
+  ].join('\n');
 }
-`;
 
 function getDeterministicFallback(language = 'English') {
   return {
@@ -210,14 +211,14 @@ function getDeterministicFallback(language = 'English') {
       {
         term: "Binding Arbitration",
         definition: "A legal procedure where disputes are resolved privately without a public judge or jury trial.",
-        whyItMatters": "Eliminates your right to sue in court if surgical negligence or malpractice occurs.",
-        askDoctor": "Is opting out of this clause allowed prior to my procedure?"
+        whyItMatters: "Eliminates your right to sue in court if surgical negligence or malpractice occurs.",
+        askDoctor: "Is opting out of this clause allowed prior to my procedure?"
       },
       {
         term: "Balance Billing",
         definition: "When a healthcare provider bills you for the difference between the total charge and the amount insurance paid.",
-        whyItMatters": "Can result in thousands of dollars in surprise out-of-pocket bills from out-of-network doctors.",
-        askDoctor": "Can you guarantee that all ancillary physicians on my surgical team are contracted in-network?"
+        whyItMatters: "Can result in thousands of dollars in surprise out-of-pocket bills from out-of-network doctors.",
+        askDoctor: "Can you guarantee that all ancillary physicians on my surgical team are contracted in-network?"
       }
     ]
   };
@@ -254,7 +255,7 @@ app.post('/api/analyze', async (req, res) => {
 });
 
 app.post('/api/analyze-file', upload.single('file'), async (req, res) => {
-  const language = req.body.language || 'English';
+  const language = req.body?.language || 'English';
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No document file uploaded' });
@@ -329,14 +330,16 @@ app.post('/api/clause-action', async (req, res) => {
       messages: [
         {
           role: 'system',
-          content: `You are a patient advocate. Provide a practical negotiation script and legal protection brief in "${language}".
-Translate ALL fields into "${language}".
-Return ONLY a valid JSON object:
-{
-  "talkingScript": "polite, assertive sentence the patient can say directly to staff in ${language}",
-  "alternativeRequest": "specific modification the patient can ask to write into the agreement in ${language}",
-  "patientRight": "plain summary of patient protection laws or standard healthcare consumer rights in ${language}"
-}`
+          content: [
+            `You are a patient advocate. Provide a practical negotiation script and legal protection brief in "${language}".`,
+            `Translate ALL fields into "${language}".`,
+            'Return ONLY a valid JSON object:',
+            '{',
+            `  "talkingScript": "polite, assertive sentence the patient can say directly to staff in ${language}",`,
+            `  "alternativeRequest": "specific modification the patient can ask to write into the agreement in ${language}",`,
+            `  "patientRight": "plain summary of patient protection laws or standard healthcare consumer rights in ${language}"`,
+            '}'
+          ].join('\n')
         },
         {
           role: 'user',
@@ -367,37 +370,37 @@ app.post('/api/generate-dispute-letter', async (req, res) => {
       ? concerns.map((c, i) => `${i + 1}. ${c.title || c.clauseTitle || 'Hazard'}: "${c.originalQuote || ''}" - ${c.plainExplanation || ''}`).join('\n')
       : 'Unilateral arbitration clause and potential out-of-network balance billing charges.';
 
-    const prompt = `
-You are an expert patient rights advocate and healthcare consumer law specialist.
-Draft a formal, professional Hospital Billing Dispute & Waiver Amendment Letter in "${language}".
-
-Details:
-- Document Type: ${documentType || 'Healthcare Waiver / Financial Undertaking'}
-- Patient Name: ${patientName}
-- Contested Clauses / Risks:
-${concernsText}
-
-Requirements:
-1. Formal header addressing Hospital Billing / Patient Relations Department.
-2. Formal notice disputing unexpected out-of-network balance billing and mandatory arbitration covenants.
-3. Explicit demand for itemized CPT billing under statutory rules such as the No Surprises Act.
-4. Formal reservation of statutory rights and objection to unilateral dispute costs.
-5. 30-day response window.
-
-Return ONLY a valid JSON object matching this structure:
-{
-  "letterSubject": "FORMAL NOTICE OF BILLING DISPUTE & WAIVER MODIFICATION DEMAND",
-  "fullLetterBody": "full multi-paragraph letter string in ${language} formatted with clean line breaks (\\\\n\\\\n)",
-  "statutoryCitations": [
-    "No Surprises Act (42 U.S.C. § 300gg-111)",
-    "Patient Protection and Affordable Care Act - Section 2718"
-  ],
-  "recommendedActionChecklist": [
-    "Send via Certified Mail with Return Receipt Requested",
-    "Do not submit payment on disputed balance until itemized CPT codes are supplied"
-  ]
-}
-`;
+    const prompt = [
+      'You are an expert patient rights advocate and healthcare consumer law specialist.',
+      `Draft a formal, professional Hospital Billing Dispute & Waiver Amendment Letter in "${language}".`,
+      '',
+      'Details:',
+      `- Document Type: ${documentType || 'Healthcare Waiver / Financial Undertaking'}`,
+      `- Patient Name: ${patientName}`,
+      '- Contested Clauses / Risks:',
+      concernsText,
+      '',
+      'Requirements:',
+      '1. Formal header addressing Hospital Billing / Patient Relations Department.',
+      '2. Formal notice disputing unexpected out-of-network balance billing and mandatory arbitration covenants.',
+      '3. Explicit demand for itemized CPT billing under statutory rules such as the No Surprises Act.',
+      '4. Formal reservation of statutory rights and objection to unilateral dispute costs.',
+      '5. 30-day response window.',
+      '',
+      'Return ONLY a valid JSON object matching this structure:',
+      '{',
+      '  "letterSubject": "FORMAL NOTICE OF BILLING DISPUTE & WAIVER MODIFICATION DEMAND",',
+      `  "fullLetterBody": "full multi-paragraph letter string in ${language} formatted with clean line breaks (\\\\n\\\\n)",`,
+      '  "statutoryCitations": [',
+      '    "No Surprises Act (42 U.S.C. § 300gg-111)",',
+      '    "Patient Protection and Affordable Care Act - Section 2718"',
+      '  ],',
+      '  "recommendedActionChecklist": [',
+      '    "Send via Certified Mail with Return Receipt Requested",',
+      '    "Do not submit payment on disputed balance until itemized CPT codes are supplied"',
+      '  ]',
+      '}'
+    ].join('\n');
 
     const activeModel = await getActiveGroqModel();
     const completion = await groq.chat.completions.create({
