@@ -83,7 +83,7 @@ Return valid JSON only. Do not wrap in markdown backticks.`;
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Analyze this healthcare paperwork:\n\n${rawText.slice(0, 6000)}` }
       ],
-      model: 'llama-3.1-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       temperature: 0.1,
       response_format: { type: 'json_object' }
     });
@@ -132,7 +132,7 @@ Format as clean, ready-to-print formal text.`;
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Patient: ${patient}\nFacility: ${facility}\nFlags: ${JSON.stringify(auditFindings || [])}\nDocument Excerpt:\n${billExcerpt.slice(0, 3000)}` }
       ],
-      model: 'llama-3.1-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       temperature: 0.2
     });
 
