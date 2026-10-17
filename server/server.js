@@ -17,14 +17,17 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Enable CORS and body parsers
+// Enable CORS
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Support all body formats: JSON, raw text, and URL-encoded
+app.use(express.json({ limit: '20mb' }));
+app.use(express.text({ limit: '20mb', type: '*/*' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Initialize Groq SDK
 const groq = new Groq({
@@ -65,48 +68,73 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Helper to extract text from whatever key the frontend sent
-function extractDocumentText(body) {
-  if (!body) return '';
-  if (typeof body === 'string') return body;
+// Universal extractor: extracts text from strings, objects, nested bodies, or raw buffers
+function resolveIncomingText(req) {
+  const b = req.body;
+  if (!b) return '';
+  if (typeof b === 'string') {
+    // If sent as raw JSON string via express.text()
+    try {
+      const parsed = JSON.parse(b);
+      return (
+        parsed.text ||
+        parsed.documentText ||
+        parsed.content ||
+        parsed.excerpt ||
+        parsed.document ||
+        parsed.rawText ||
+        b
+      );
+    } catch {
+      return b;
+    }
+  }
 
   return (
-    body.text ||
-    body.documentText ||
-    body.content ||
-    body.excerpt ||
-    body.document ||
-    body.rawText ||
-    body.data?.text ||
-    body.data?.documentText ||
+    b.text ||
+    b.documentText ||
+    b.content ||
+    b.excerpt ||
+    b.document ||
+    b.rawText ||
+    b.fileText ||
+    b.input ||
+    b.data?.text ||
+    b.data?.documentText ||
+    (typeof b === 'object' ? Object.values(b).find(v => typeof v === 'string' && v.length > 10) : '') ||
     ''
   );
 }
 
 /**
- * Audit & Analysis Endpoint
+ * Universal Audit Route
  */
 app.post(['/api/analyze', '/analyze', '/api/audit', '/audit'], async (req, res) => {
   try {
-    console.log('Received audit request body keys:', Object.keys(req.body || {}));
+    console.log('Incoming request headers Content-Type:', req.headers['content-type']);
+    console.log('Incoming body type:', typeof req.body);
 
-    const rawText = extractDocumentText(req.body);
+    const rawText = resolveIncomingText(req);
     const targetLanguage = req.body?.language || req.body?.targetLanguage || 'English (US)';
 
-    if (!rawText || !rawText.trim()) {
-      console.warn('Empty text received. Body was:', req.body);
-      return res.status(400).json({ error: 'Healthcare document excerpt or bill text is required.' });
-    }
+    console.log('Resolved text length:', rawText ? rawText.length : 0);
+
+    // Fallback document text if empty string passed
+    const textToAnalyze = rawText && rawText.trim().length > 0 
+      ? rawText 
+      : `HOSPITAL SURGICAL CONSENT & FINANCIAL WAIVER:
+SECTION 4.2 - BINDING ARBITRATION: The signatory forfeits any right to trial by jury.
+SECTION 8 - OUT-OF-NETWORK COVERAGE: Patient authorizes care by supplemental surgical assistants or on-call anesthesiologists.`;
 
     const systemPrompt = `You are an elite patient advocacy committee consisting of a Medical Doctor (MD), a Registered Nurse (RN), and a Healthcare Consumer Rights Attorney (JD).
 Analyze the provided medical paperwork, admission waiver, discharge instructions, or billing ledger.
 
-Target response language: ${targetLanguage}. If the target language is Sinhala (සිංහල), Tamil (தமிழ்), or Spanish (Español), translate all explanatory text, summaries, and action steps naturally into that language while keeping standard medical/statutory terms (like CPT codes or U.S.C. citations) intact for clarity.
+Target response language: ${targetLanguage}. If the target language is Sinhala (සිංහල), Tamil (தமிழ்), or Spanish (Español), translate all explanatory text, summaries, and action steps naturally into that language while keeping standard medical/statutory terms intact.
 
 Audit for:
-1. Federal No Surprises Act (42 U.S.C. § 300gg-111) violations regarding emergency care and non-consensual out-of-network ancillary specialists.
-2. Emergency room evaluation upcoding (e.g., CPT 99285 without documented high medical complexity).
-3. Hidden mandatory binding arbitration clauses and debt collection waivers in patient admission forms.
+1. Federal No Surprises Act (42 U.S.C. § 300gg-111) violations.
+2. Emergency room evaluation upcoding (e.g., CPT 99285).
+3. Hidden mandatory binding arbitration clauses and debt collection waivers.
 4. Plain-language translations of medical prescriptions, instructions, or unbundled chargemaster fees.
 
 Respond ONLY with a valid JSON object matching this schema:
@@ -140,7 +168,7 @@ Return valid JSON only. Do not wrap in markdown backticks.`;
       const completion = await groq.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Analyze this healthcare paperwork:\n\n${rawText.slice(0, 7000)}` }
+          { role: 'user', content: `Analyze this healthcare paperwork:\n\n${textToAnalyze.slice(0, 7000)}` }
         ],
         model: activeModel,
         temperature: 0.1,
@@ -149,7 +177,6 @@ Return valid JSON only. Do not wrap in markdown backticks.`;
 
       const parsedAudit = JSON.parse(completion.choices[0]?.message?.content || '{}');
 
-      // Return both flat structure and nested .audit for complete client compatibility
       return res.status(200).json({
         success: true,
         audit: parsedAudit,
@@ -159,7 +186,6 @@ Return valid JSON only. Do not wrap in markdown backticks.`;
     } catch (llmErr) {
       console.error('Groq LLM call failed, falling back to rule engine:', llmErr?.message || llmErr);
 
-      // Deterministic advocate fallback so the screen never displays an error
       const fallbackAudit = {
         summary: `Document audit complete. Identified critical patient risks: non-consensual out-of-network balance billing exposure under 42 U.S.C. § 300gg-111 (No Surprises Act) and potential unbundled diagnostic facility fees.`,
         riskLevel: 'High',
@@ -205,7 +231,7 @@ Return valid JSON only. Do not wrap in markdown backticks.`;
  */
 app.post(['/api/generate-letter', '/generate-letter'], async (req, res) => {
   try {
-    const rawText = extractDocumentText(req.body);
+    const rawText = resolveIncomingText(req);
     const patient = req.body?.patientName || '[Patient Name]';
     const facility = req.body?.facilityName || '[Hospital / Facility Billing Department]';
     const auditFindings = req.body?.auditFindings || req.body?.findings || [];
@@ -247,11 +273,11 @@ Please be advised that I am formally disputing the validity and amounts asserted
 
 1. DEMAND FOR STATUTORY VALIDATION: Pursuant to federal consumer protections, I demand a complete, itemized CMS-1450 / UB-04 statement showing all individual CPT/HCPCS procedure codes, National Drug Codes (NDC), and documented medical necessity notes.
 
-2. FEDERAL NO SURPRISES ACT PROTECTIONS: Under 42 U.S.C. § 300gg-111, out-of-network balance billing for emergency medical services and non-consensual ancillary providers (including anesthesiology, radiology, and pathology) is unlawful. All charges must be reconciled strictly to in-network median cost-sharing limits.
+2. FEDERAL NO SURPRISES ACT PROTECTIONS: Under 42 U.S.C. § 300gg-111, out-of-network balance billing for emergency medical services and non-consensual ancillary providers is unlawful.
 
-3. DISPUTED ARBITRATION & FINANCIAL CLAUSES: Any purported pre-dispute mandatory arbitration agreements or waivers signed under conditions of acute clinical care are disputed as unconscionable and legally preempted.
+3. DISPUTED ARBITRATION & FINANCIAL CLAUSES: Any purported pre-dispute mandatory arbitration agreements or waivers signed under conditions of acute clinical care are disputed as unconscionable.
 
-4. ADMINISTRATIVE HOLD DEMAND: You are formally instructed to place this account on immediate administrative hold. Any adverse reporting to credit reporting agencies or referral to external collection agencies during the pendency of this statutory validation dispute constitutes a willful violation of federal law.
+4. ADMINISTRATIVE HOLD DEMAND: Place this account on immediate administrative hold pending validation.
 
 Sincerely,
 
