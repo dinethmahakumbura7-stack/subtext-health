@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
-import pdfParse from 'pdf-parse';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 import Groq from 'groq-sdk';
 
 dotenv.config();
@@ -114,7 +116,7 @@ app.post('/api/analyze', async (req, res) => {
         { role: 'system', content: getAdvocacyPrompt(language) },
         { role: 'user', content: `Please review and advocate for the patient with this text:\n\n${textContent}` }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       response_format: { type: 'json_object' },
       temperature: 0.2
     });
@@ -172,7 +174,7 @@ app.post('/api/analyze-file', upload.single('file'), async (req, res) => {
         { role: 'system', content: getAdvocacyPrompt(language) },
         { role: 'user', content: `Please review and advocate for the patient with this text:\n\n${extractedText}` }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       response_format: { type: 'json_object' },
       temperature: 0.2
     });
@@ -207,7 +209,7 @@ Return ONLY a valid JSON object:
           content: `Clause: ${clauseTitle}\nQuote: "${originalQuote}"\nMeaning: ${plainExplanation}`
         }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       response_format: { type: 'json_object' },
       temperature: 0.2
     });
@@ -265,7 +267,7 @@ Return ONLY a valid JSON object matching this structure:
         { role: 'system', content: 'You are a healthcare advocate. Output valid JSON only.' },
         { role: 'user', content: prompt }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       response_format: { type: 'json_object' },
       temperature: 0.2
     });
