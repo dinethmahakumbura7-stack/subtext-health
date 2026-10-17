@@ -8,20 +8,20 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Enable CORS for all incoming client requests
+// Middleware
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // Initialize Groq SDK
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-// Health checks (for UptimeRobot and Render warm-up)
+// Health check endpoints for Render and UptimeRobot
 app.get('/', (req, res) => {
   res.status(200).send('SubText Health backend is live and healthy.');
 });
@@ -30,50 +30,58 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Primary Audit / Analyze Handler
-const handleAnalysis = async (req, res) => {
+/**
+ * Audit & Analysis Core Handler
+ * Handles /api/analyze, /analyze, /api/audit, and /audit
+ */
+const handleAnalyze = async (req, res) => {
   try {
     const rawText = req.body.documentText || req.body.text || req.body.content || req.body.excerpt || '';
+    const targetLanguage = req.body.language || 'English (US)';
 
-    if (!rawText.trim()) {
-      return res.status(400).json({ error: 'Document excerpt or text is required.' });
+    if (!rawText || !rawText.trim()) {
+      return res.status(400).json({ error: 'Healthcare document excerpt or bill text is required.' });
     }
 
-    const systemPrompt = `You are SubText Health's elite patient advocacy team (combining medical billing auditors, clinical patient navigators, and healthcare consumer rights attorneys).
-Analyze this healthcare document (surgical consent, emergency admission, financial waiver, or medical billing ledger).
+    const systemPrompt = `You are an elite patient advocacy committee consisting of a Medical Doctor (MD), a Registered Nurse (RN), and a Healthcare Consumer Rights Attorney (JD).
+Analyze the provided medical paperwork, admission waiver, discharge instructions, or billing ledger.
 
-Evaluate rigorously for:
-1. Violations of the federal No Surprises Act (42 U.S.C. § 300gg-111) for out-of-network emergency room care and non-consensual ancillary specialists (anesthesiology, radiology, pathology).
-2. Emergency room evaluation upcoding (e.g., CPT 99285 without documented high-complexity medical decision-making).
-3. Unbundled procedures, duplicate line items, and unreasonable chargemaster facility fees.
-4. Mandatory binding arbitration covenants and hidden debt collection waivers in patient admission agreements.
+Target response language: ${targetLanguage}. If the target language is Sinhala (සිංහල), Tamil (தமிழ்), or Spanish (Español), translate all explanatory text, summaries, and action steps naturally into that language while keeping standard medical/statutory terms (like CPT codes or U.S.C. citations) intact for clarity.
+
+Audit for:
+1. Federal No Surprises Act (42 U.S.C. § 300gg-111) violations regarding emergency care and non-consensual out-of-network ancillary specialists.
+2. Emergency room evaluation upcoding (e.g., CPT 99285 without documented high medical complexity).
+3. Hidden mandatory binding arbitration clauses and debt collection waivers in patient admission forms.
+4. Plain-language translations of medical prescriptions, instructions, or unbundled chargemaster fees.
 
 Respond ONLY with a valid JSON object matching this schema:
 {
-  "summary": "Clear 2-3 sentence overview of what the patient is looking at and key risks.",
-  "riskLevel": "High",
+  "summary": "Brief 2-3 sentence overview of findings in the requested language",
+  "riskLevel": "High" | "Medium" | "Low",
   "riskScore": 85,
-  "potentialSavings": "Estimated dollar savings or percentage if applicable",
-  "violations": [
+  "potentialSavings": "Estimated dollar range or percentage if applicable",
+  "findings": [
     {
-      "title": "Short title of violation or clause",
-      "statute": "Statutory citation (e.g., 42 U.S.C. § 300gg-111 or Section 4.2 Arbitration)",
-      "explanation": "Plain-language translation of what this means for the patient",
-      "action": "Concrete step the patient should take"
+      "category": "Arbitration" | "Billing" | "Legal" | "Clinical",
+      "title": "Short title in requested language",
+      "statute": "Statutory citation or rule (e.g., 42 U.S.C. § 300gg-111, AMA Ethics Code)",
+      "explanation": "Clear, compassionate plain-language breakdown for the patient",
+      "action": "Concrete, actionable recommendation"
     }
   ],
   "itemizedFlags": [
     {
-      "code": "Section or CPT code",
-      "issue": "Specific warning"
+      "code": "CPT code or line item",
+      "issue": "Specific flag"
     }
   ]
-}`;
+}
+Return valid JSON only. Do not wrap in markdown backticks.`;
 
     const completion = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Analyze this medical text:\n\n${rawText.slice(0, 6000)}` }
+        { role: 'user', content: `Analyze this healthcare paperwork:\n\n${rawText.slice(0, 6000)}` }
       ],
       model: 'llama3-70b-8192',
       temperature: 0.1,
@@ -82,22 +90,27 @@ Respond ONLY with a valid JSON object matching this schema:
 
     const parsedAudit = JSON.parse(completion.choices[0]?.message?.content || '{}');
 
-    // Return compatibility fields for any frontend shape
+    // Return in multiple property structures for complete frontend compatibility
     return res.status(200).json({
       success: true,
       audit: parsedAudit,
       ...parsedAudit
     });
   } catch (error) {
-    console.error('Analysis Error:', error);
-    return res.status(500).json({ error: 'Failed to complete document audit.' });
+    console.error('Audit Error:', error);
+    return res.status(500).json({ error: 'Failed to analyze healthcare document.' });
   }
 };
 
-// Route matching: catches /api/analyze, /analyze, /api/audit, and /audit
-app.post(['/api/analyze', '/analyze', '/api/audit', '/audit'], handleAnalysis);
+// Map all route variations so no frontend call gets a 404
+app.post('/api/analyze', handleAnalyze);
+app.post('/analyze', handleAnalyze);
+app.post('/api/audit', handleAnalyze);
+app.post('/audit', handleAnalyze);
 
-// Free Legal Dispute Notice Generator (replaces Gumroad paywall)
+/**
+ * Free Legal Dispute & Debt Validation Letter Generator
+ */
 app.post(['/api/generate-letter', '/generate-letter'], async (req, res) => {
   try {
     const { documentText, text, excerpt, auditFindings, patientName, facilityName } = req.body;
@@ -105,19 +118,19 @@ app.post(['/api/generate-letter', '/generate-letter'], async (req, res) => {
     const patient = patientName || '[Patient Name]';
     const facility = facilityName || '[Hospital / Facility Billing Department]';
 
-    const systemPrompt = `You are a healthcare advocate and attorney drafting an official, legally cited Medical Debt Dispute and Debt Validation Notice.
-Cite applicable federal laws:
+    const systemPrompt = `You are a healthcare consumer rights attorney and patient advocate drafting an official, legally cited Medical Debt Dispute and Statutory Validation Notice.
+Cite where applicable:
 - Federal No Surprises Act (42 U.S.C. § 300gg-111) regarding balance billing protections.
-- Fair Debt Collection Practices Act (15 U.S.C. § 1692g) for debt verification.
+- Fair Debt Collection Practices Act (15 U.S.C. § 1692g) requiring debt verification.
 - Demand for a complete itemized UB-04 / CMS-1450 statement with individual CPT and HCPCS codes.
-- Formal notice freezing collection agency referrals and credit bureau reporting pending dispute review.
+- Formal demand placing the account on administrative hold and freezing external debt collection and credit bureau reporting.
 
-Include date placeholders, certified mail tracking lines, formal subject line, numbered statutory demands, and signature line. Format as clean plain text.`;
+Format as clean, ready-to-print formal text.`;
 
     const completion = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Patient: ${patient}\nFacility: ${facility}\nFlags: ${JSON.stringify(auditFindings || [])}\nExcerpt: ${billExcerpt.slice(0, 3000)}` }
+        { role: 'user', content: `Patient: ${patient}\nFacility: ${facility}\nFlags: ${JSON.stringify(auditFindings || [])}\nDocument Excerpt:\n${billExcerpt.slice(0, 3000)}` }
       ],
       model: 'llama3-70b-8192',
       temperature: 0.2
@@ -126,8 +139,8 @@ Include date placeholders, certified mail tracking lines, formal subject line, n
     const letterContent = completion.choices[0]?.message?.content || '';
     return res.status(200).json({ success: true, letter: letterContent });
   } catch (error) {
-    console.error('Dispute Letter Error:', error);
-    return res.status(500).json({ error: 'Failed to generate dispute notice.' });
+    console.error('Letter Error:', error);
+    return res.status(500).json({ error: 'Failed to generate dispute packet.' });
   }
 });
 
